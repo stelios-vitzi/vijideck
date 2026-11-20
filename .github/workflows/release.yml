@@ -1,0 +1,138 @@
+name: Desktop build and release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Validate release version
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check tag matches Cargo.toml and Cargo.lock
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n '/^\[package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -n1)"
+          if [[ -z "$version" ]]; then
+            echo '::error::Could not read the package version from Cargo.toml'
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version v$version"
+            exit 1
+          fi
+          if ! grep -A1 -x 'name = "vijideck"' Cargo.lock | grep -qx "version = \"$version\""; then
+            echo "::error::Cargo.lock is not updated to vijideck $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Check and package
+    needs: preflight
+    uses: ./.github/workflows/ci.yml
+
+  audit-rust:
+    name: Block Rust vulnerabilities (${{ matrix.lockfile }})
+    needs: preflight
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        lockfile: [Cargo.lock, xtask/Cargo.lock]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo-audit
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cargo-audit-0.23.0
+          cache-targets: 'false'
+      - name: Install cargo-audit on cache miss
+        shell: bash
+        run: |
+          if [[ "$(cargo audit --version 2>/dev/null || true)" != *' 0.23.0' ]]; then
+            cargo install cargo-audit --locked --version 0.23.0 --force
+          fi
+      - run: cargo audit --file "${{ matrix.lockfile }}"
+
+  release:
+    name: Publish GitHub Release
+    needs: [preflight, build, audit-rust]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: vijideck-*
+          merge-multiple: true
+      - name: Publish release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          find artifacts -type f -name SHA256SUMS.txt -exec cat {} + | sort -k2 > SHA256SUMS.txt
+          mapfile -d '' packages < <(find artifacts -type f ! -name SHA256SUMS.txt -print0)
+          if (( ${#packages[@]} == 0 )); then
+            echo '::error::No packages were downloaded'
+            exit 1
+          fi
+          # Upload everything to a draft first so the public release appears complete.
+          gh release create "$RELEASE_TAG" "${packages[@]}" SHA256SUMS.txt --verify-tag \
+            --title "VijiDeck $RELEASE_VERSION" --generate-notes --draft
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  summary:
+    name: Release outcome
+    needs: [preflight, build, audit-rust, release]
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Report publication and blocking gates
+        shell: bash
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          AUDIT_RESULT: ${{ needs.audit-rust.result }}
+          RELEASE_RESULT: ${{ needs.release.result }}
+        run: |
+          {
+            echo '## Desktop release outcome'
+            echo "- Version check: $PREFLIGHT_RESULT"
+            echo "- Checks and native packages: $BUILD_RESULT"
+            echo "- RustSec audits: $AUDIT_RESULT"
+            echo "- Publication: $RELEASE_RESULT"
+            if [[ "$RELEASE_RESULT" == success ]]; then
+              echo "[Published release](https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME)"
+            elif [[ "$PREFLIGHT_RESULT" != success ]]; then
+              echo 'No release was published: the tag does not match the Cargo.toml/Cargo.lock version.'
+            else
+              echo 'No release was published. Review the failed or cancelled gates above.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$RELEASE_RESULT" == success ]]
