@@ -2,16 +2,14 @@
 <!-- Covered by the repository LICENSE. -->
 <component type="desktop-application">
   <id>app.vijideck.desktop</id>
-  <metadata_license>LicenseRef-VijiDeck-Personal-and-Internal-Use-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary=https://github.com/SteliosDaVitzi/vijideck/blob/main/LICENSE</project_license>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
   <name>VijiDeck</name>
   <summary>Monitor your system and manage your development environment</summary>
   <description>
     <p>VijiDeck is a native desktop toolkit for system monitoring, ports and
     processes, developer environments, disk cleanup, Docker, and system logs.</p>
-    <p>Free for personal use and internal professional use within companies.
-    Commercial redistribution, hosted offerings, and external paid services
-    require separate permission. See the license for the full terms.</p>
+    <p>Free and open source under the MIT License.</p>
   </description>
   <launchable type="desktop-id">vijideck.desktop</launchable>
   <provides><binary>vijideck</binary></provides>

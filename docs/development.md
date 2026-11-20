@@ -20,7 +20,7 @@ The `xtask` command is a separate Rust tool with no crate dependencies; Python i
 
 CI builds Windows x64, macOS Intel and Apple Silicon, and Linux x64 packages on every push, pull request, and manual run. Linux builds use Ubuntu 22.04 as the baseline; the Debian package calculates versioned linked-library dependencies and declares dynamically loaded desktop libraries. Other Linux distributions can use the portable archive when compatible libraries are available; RPM and AppImage are not supplied. The Linux packager also supports native arm64 builds, but these are not covered by the CI matrix. The `.deb` requires at least the glibc version of the machine that built it, so a package built locally on a newer distribution (for example Ubuntu 26.04) will not install on Debian 12/13; use the CI artifacts, or build on the oldest Debian/Ubuntu release you need to support.
 
-To prepare a release, update `Cargo.toml` and `Cargo.lock` together, commit, then push a matching tag such as `v0.1.4`. After all platform checks and packages succeed, CI creates a **draft GitHub Release** with the packages and combined `SHA256SUMS.txt`. Review the draft before publishing. A tag that differs from the Cargo version fails packaging. Untagged builds remain available as workflow artifacts.
+To prepare a release, update `Cargo.toml` and `Cargo.lock` together, commit, then push a matching tag such as `v0.1.4` (`git tag v0.1.4 && git push origin v0.1.4`). The tag starts the **Desktop build and release** workflow (`.github/workflows/release.yml`): it first checks that the tag matches the `Cargo.toml` and `Cargo.lock` version, then runs the full CI check and packaging matrix and a RustSec `cargo audit` of both lockfiles. When every gate passes, it publishes a GitHub Release titled `VijiDeck <version>`, marked as latest, with all packages, a combined `SHA256SUMS.txt`, and generated notes. If any gate fails, nothing is published and the run summary lists the failed gate. Branch pushes and pull requests run CI only; their packages remain available as workflow artifacts for 14 days.
 
 Packages currently have no trusted distribution signature. macOS bundles use an ad-hoc signature, which does not provide Developer ID trust or notarization. Windows SmartScreen and macOS Gatekeeper may warn or block downloaded packages. Public distribution with trusted installation requires Windows code-signing credentials and an Apple Developer ID/notarization setup. Auto-updates are not configured. Checksums verify file integrity, not publisher identity. The macOS bundle identifier is `app.vijideck.desktop`; choose an identifier under your control before signing a public release.
 
@@ -53,13 +53,8 @@ previews also support `VIJIDECK_PREVIEW_COMPACT=1`.
 
 ## License metadata
 
-Linux packages install AppStream metadata with a custom/proprietary license reference
-and a link to the full terms. Software centers may label this as proprietary or
-special; they do not all display custom license names. The metadata file and
-application are covered by the same custom license. AppStream requires permissive
-metadata licensing, so this file does not meet that catalog requirement and some
-software centers may decline to index it. Packaging therefore does not require
-AppStream catalog validation.
-Windows setup displays the full license and carries publisher/copyright metadata.
+VijiDeck is MIT licensed. Linux packages install AppStream metadata declaring `MIT`
+as both the metadata and project license, plus a Debian `copyright` file with the
+full terms. Windows setup displays the full license and carries publisher/copyright metadata.
 macOS bundles include a human-readable copyright/license notice in Info.plist and
 the full terms in Contents/Resources/LICENSE. Rebuild packages to apply these changes.

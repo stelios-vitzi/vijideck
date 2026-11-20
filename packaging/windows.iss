@@ -9,10 +9,10 @@
 AppId={{B975A203-0375-4E63-9A96-A82D276BC0F2}
 AppName=VijiDeck
 AppVersion={#AppVersion}
-AppPublisher=Stelios Vitzilaios
+AppPublisher=Stylianos Vitzilaios
 AppPublisherURL=https://github.com/SteliosDaVitzi/vijideck
-VersionInfoCopyright=Copyright (c) 2026 Stelios Vitzilaios and VijiDeck contributors
-VersionInfoDescription=VijiDeck - Personal and Internal Use License 1.0
+VersionInfoCopyright=Copyright (c) 2026 Stylianos Vitzilaios and VijiDeck contributors
+VersionInfoDescription=VijiDeck - MIT License
 LicenseFile={#NoticePath}\LICENSE
 DefaultDirName={autopf}\VijiDeck
 DefaultGroupName=VijiDeck

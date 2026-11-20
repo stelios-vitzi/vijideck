@@ -187,7 +187,7 @@ fn macos(
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleShortVersionString</key><string>{version}</string>
 <key>CFBundleVersion</key><string>{version}</string>
-<key>NSHumanReadableCopyright</key><string>Copyright (c) 2026 Stelios Vitzilaios and VijiDeck contributors. VijiDeck Personal and Internal Use License 1.0. See Resources/LICENSE.</string>
+<key>NSHumanReadableCopyright</key><string>Copyright (c) 2026 Stylianos Vitzilaios and VijiDeck contributors. MIT License. See Resources/LICENSE.</string>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
@@ -263,8 +263,6 @@ fn linux(
     let metainfo = root.join("packaging/linux/app.vijideck.desktop.metainfo.xml");
     let installed_metainfo = package.join("usr/share/metainfo/app.vijideck.desktop.metainfo.xml");
     write(&installed_metainfo, fs::read(&metainfo)?)?;
-    // The custom metadata license is intentionally outside AppStream catalog policy.
-    // Keep the license reference available to consumers without requiring catalog validation.
     let documentation = package.join(format!("usr/share/doc/{NAME}"));
     copy_notices(root, &documentation)?;
     write(

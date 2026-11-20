@@ -1,8 +1,8 @@
 # Third-party notices
 
-VijiDeck's custom license covers its original material only. Dependencies and
-vendored assets retain their own licenses; the commercial restrictions in the
-root LICENSE do not relicense those components.
+VijiDeck's MIT License covers its original material only. Dependencies and
+vendored assets retain their own licenses; the root LICENSE does not relicense
+those components.
 
 ## Devicon
 

@@ -55,8 +55,4 @@ Cleanup permanently deletes selected files, bypassing Trash/Recycle Bin. Stoppin
 
 ## License
 
-VijiDeck is **source available**, under the custom [VijiDeck Personal and Internal Use License 1.0](LICENSE).
-
-Personal use and internal professional use within companies are allowed, including work supporting a company's commercial activities. Selling VijiDeck, providing it as a hosted service, bundling it into a customer product, or using it to provide software services to third parties is prohibited without separate written permission. Free noncommercial redistribution and modifications are allowed under the license's conditions.
-
-Because it restricts commercial exploitation, this is not an OSI-approved open source license. Third-party components retain their [own licenses](THIRD_PARTY_NOTICES.md).
+VijiDeck is open source under the [MIT License](LICENSE). Third-party components retain their [own licenses](THIRD_PARTY_NOTICES.md).
