@@ -159,7 +159,13 @@ mod tests {
     fn shell(script: &str, timeout: Duration, output_bytes: usize) -> Result<Output, Error> {
         let mut command = Command::new("sh");
         command.args(["-c", script]);
-        capture(command, Limits { timeout, output_bytes })
+        capture(
+            command,
+            Limits {
+                timeout,
+                output_bytes,
+            },
+        )
     }
 
     #[cfg(unix)]
@@ -169,7 +175,8 @@ mod tests {
             "head -c 131072 /dev/zero; head -c 131072 /dev/zero >&2; exit 7",
             Duration::from_secs(5),
             131072,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(output.stdout.len(), 131072);
         assert_eq!(output.stderr.len(), 131072);
         assert_eq!(output.status.code(), Some(7));

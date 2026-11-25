@@ -5,18 +5,18 @@ use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
 use std::sync::Arc;
 
 /// Main canvas.
-pub const BG: Color32 = Color32::from_rgb(8, 15, 24);
+pub const BG: Color32 = Color32::from_rgb(19, 26, 38);
 /// Navigation rail and recessed areas.
-pub const PANEL: Color32 = Color32::from_rgb(6, 11, 20);
+pub const PANEL: Color32 = Color32::from_rgb(15, 21, 31);
 /// Raised surfaces such as dialogs and popups.
-pub const RAISE: Color32 = Color32::from_rgb(17, 25, 36);
+pub const RAISE: Color32 = Color32::from_rgb(30, 39, 53);
 /// Subtle fill for inputs, chips, and hover states.
-pub const SURFACE: Color32 = Color32::from_rgb(18, 26, 35);
-pub const FILL_2: Color32 = Color32::from_rgb(27, 34, 44);
+pub const SURFACE: Color32 = Color32::from_rgb(30, 39, 52);
+pub const FILL_2: Color32 = Color32::from_rgb(41, 50, 64);
 /// Hairline separators.
-pub const LINE: Color32 = Color32::from_rgb(23, 30, 40);
+pub const LINE: Color32 = Color32::from_rgb(37, 46, 60);
 /// Unfilled gauge and meter tracks.
-pub const TRACK: Color32 = Color32::from_rgb(27, 34, 44);
+pub const TRACK: Color32 = Color32::from_rgb(40, 49, 63);
 pub const TEXT: Color32 = Color32::from_rgb(234, 239, 247);
 pub const TEXT_2: Color32 = Color32::from_rgb(169, 178, 191);
 pub const MUTED: Color32 = Color32::from_rgb(125, 135, 150);
@@ -24,7 +24,7 @@ pub const ACCENT: Color32 = Color32::from_rgb(158, 168, 255);
 pub const TEAL: Color32 = Color32::from_rgb(103, 210, 204);
 pub const WARNING: Color32 = Color32::from_rgb(243, 127, 176);
 pub const DANGER: Color32 = Color32::from_rgb(238, 100, 118);
-pub const SELECTED_FILL: Color32 = Color32::from_rgb(26, 33, 52);
+pub const SELECTED_FILL: Color32 = Color32::from_rgb(40, 47, 74);
 pub const G_CPU: Color32 = Color32::from_rgb(169, 165, 255);
 pub const G_MEM: Color32 = Color32::from_rgb(92, 216, 209);
 pub const G_GPU: Color32 = Color32::from_rgb(98, 187, 245);
@@ -108,7 +108,7 @@ pub fn theme(ctx: &egui::Context) {
     v.panel_fill = BG;
     v.window_fill = RAISE;
     v.extreme_bg_color = PANEL;
-    v.faint_bg_color = Color32::from_rgb(12, 19, 29);
+    v.faint_bg_color = Color32::from_rgb(24, 32, 45);
     v.code_bg_color = SURFACE;
     v.window_stroke = Stroke::NONE;
     v.window_corner_radius = 18.into();
@@ -181,6 +181,65 @@ pub fn theme(ctx: &egui::Context) {
 
 pub fn panel(fill: Color32, margin: i8) -> egui::Frame {
     egui::Frame::new().fill(fill).inner_margin(margin)
+}
+
+/// Unfilled frame for main content panels so the [`backdrop`] shows through.
+pub fn canvas(margin: i8) -> egui::Frame {
+    panel(Color32::TRANSPARENT, margin)
+}
+
+/// Paints the window backdrop: a soft diagonal gradient from a faintly violet
+/// top-left to a deeper, teal-leaning bottom-right. Call before any panels.
+pub fn backdrop(ctx: &egui::Context) {
+    let rect = ctx.content_rect();
+    let painter = ctx.layer_painter(egui::LayerId::background());
+    let mut mesh = egui::Mesh::default();
+    let corners = [
+        (rect.left_top(), Color32::from_rgb(27, 33, 50)),
+        (rect.right_top(), Color32::from_rgb(21, 30, 43)),
+        (rect.right_bottom(), Color32::from_rgb(14, 22, 31)),
+        (rect.left_bottom(), Color32::from_rgb(17, 23, 35)),
+    ];
+    for (pos, color) in corners {
+        mesh.colored_vertex(pos, color);
+    }
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    painter.add(mesh);
+}
+
+/// Frame shared by every text input: recessed panel fill with a hairline border.
+pub fn input_frame() -> egui::Frame {
+    egui::Frame::new()
+        .fill(PANEL)
+        .stroke(Stroke::new(1.0_f32, LINE))
+        .corner_radius(5)
+        .inner_margin(egui::Margin::symmetric(12, INPUT_MARGIN_Y))
+}
+
+const INPUT_MARGIN_Y: i8 = 5;
+
+/// Standard single-line text input. `width` is the outer width including the
+/// frame; the height matches buttons and combo boxes (`interact_size.y`) so
+/// inputs line up with the controls beside them.
+pub fn text_input(
+    ui: &mut egui::Ui,
+    text: &mut String,
+    hint: impl Into<egui::WidgetText>,
+    width: f32,
+) -> egui::Response {
+    // Frame adds the vertical margin on both sides plus a 1 px stroke each side.
+    let inner = (ui.spacing().interact_size.y - 2.0 * f32::from(INPUT_MARGIN_Y) - 2.0).max(16.0);
+    input_frame()
+        .show(ui, |ui| {
+            ui.add_sized(
+                [(width - 26.0).max(40.0), inner],
+                egui::TextEdit::singleline(text)
+                    .hint_text(hint)
+                    .frame(false),
+            )
+        })
+        .inner
 }
 
 pub fn caption(ui: &mut egui::Ui, text: &str) {
@@ -308,7 +367,120 @@ pub fn disk_glyph(p: &egui::Painter, rect: egui::Rect, color: Color32) {
 }
 
 /// Text-only navigation item with a mono index, as in the Glacier rail.
-pub fn nav_item(ui: &mut egui::Ui, index: usize, label: &str, selected: bool) -> egui::Response {
+/// Hairline navigation icons, drawn in a 16 pt box so they follow the theme
+/// colour and stay crisp at any scale.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Glyph {
+    Overview,
+    Computer,
+    Ports,
+    Processes,
+    Services,
+    Docker,
+    Cleanup,
+    Environment,
+    Logs,
+}
+
+impl Glyph {
+    pub fn paint(self, p: &egui::Painter, center: egui::Pos2, color: Color32) {
+        use std::f32::consts::PI;
+        let s = Stroke::new(1.3_f32, color);
+        let at = |x: f32, y: f32| center + Vec2::new(x, y);
+        let line = |points: &[(f32, f32)]| {
+            p.add(egui::Shape::line(
+                points.iter().map(|&(x, y)| at(x, y)).collect(),
+                s,
+            ));
+        };
+        let frame = |w: f32, h: f32, dy: f32, radius: f32| {
+            p.rect_stroke(
+                egui::Rect::from_center_size(at(0.0, dy), Vec2::new(w, h)),
+                radius,
+                s,
+                egui::StrokeKind::Middle,
+            );
+        };
+        match self {
+            Self::Overview => {
+                let arc = (0..=24)
+                    .map(|i| center + Vec2::angled(PI * 0.75 + PI * 1.5 * i as f32 / 24.0) * 6.5)
+                    .collect();
+                p.add(egui::Shape::line(arc, s));
+                p.line_segment([center, center + Vec2::angled(-PI * 0.3) * 4.2], s);
+                p.circle_filled(center, 1.4, color);
+            }
+            Self::Computer => {
+                frame(15.0, 10.0, -1.5, 1.5);
+                line(&[(0.0, 3.5), (0.0, 6.0)]);
+                line(&[(-3.5, 6.0), (3.5, 6.0)]);
+            }
+            Self::Ports => {
+                let nodes = [(0.0, -5.5), (-5.2, 4.2), (5.2, 4.2)];
+                for (x, y) in nodes {
+                    let node = at(x, y);
+                    p.line_segment([center + (node - center).normalized() * 2.3, node], s);
+                    p.circle_filled(node, 1.9, color);
+                }
+                p.circle_stroke(center, 2.3, s);
+            }
+            Self::Processes => line(&[
+                (-7.0, 0.5),
+                (-3.8, 0.5),
+                (-1.8, -5.5),
+                (1.6, 6.0),
+                (3.6, 0.5),
+                (7.0, 0.5),
+            ]),
+            Self::Services => {
+                p.circle_stroke(center, 4.8, s);
+                p.circle_stroke(center, 1.8, s);
+                for i in 0..8 {
+                    let direction = Vec2::angled(PI / 4.0 * i as f32);
+                    p.line_segment(
+                        [center + direction * 4.8, center + direction * 7.0],
+                        Stroke::new(2.0_f32, color),
+                    );
+                }
+            }
+            Self::Docker => {
+                let r = 7.0;
+                let (dx, dy) = (r * 0.866, r * 0.5);
+                line(&[
+                    (0.0, -r),
+                    (dx, -dy),
+                    (dx, dy),
+                    (0.0, r),
+                    (-dx, dy),
+                    (-dx, -dy),
+                    (0.0, -r),
+                ]);
+                line(&[(-dx, -dy), (0.0, 0.0), (dx, -dy)]);
+                line(&[(0.0, 0.0), (0.0, r)]);
+            }
+            Self::Cleanup => {
+                line(&[(-6.0, -4.5), (6.0, -4.5)]);
+                line(&[(-2.0, -4.5), (-2.0, -6.5), (2.0, -6.5), (2.0, -4.5)]);
+                line(&[(-4.5, -4.5), (-3.7, 6.5), (3.7, 6.5), (4.5, -4.5)]);
+                line(&[(-1.3, -1.5), (-1.3, 3.5)]);
+                line(&[(1.3, -1.5), (1.3, 3.5)]);
+            }
+            Self::Environment => {
+                frame(15.0, 12.0, 0.0, 2.0);
+                line(&[(-4.0, -2.0), (-1.5, 0.0), (-4.0, 2.0)]);
+                line(&[(0.5, 2.5), (4.0, 2.5)]);
+            }
+            Self::Logs => {
+                frame(11.0, 14.0, 0.0, 1.5);
+                line(&[(-2.8, -3.0), (2.8, -3.0)]);
+                line(&[(-2.8, 0.0), (2.8, 0.0)]);
+                line(&[(-2.8, 3.0), (0.8, 3.0)]);
+            }
+        }
+    }
+}
+
+pub fn nav_item(ui: &mut egui::Ui, glyph: Glyph, label: &str, selected: bool) -> egui::Response {
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), 36.0), egui::Sense::click());
     let hovered = response.hovered() || response.has_focus();
@@ -316,15 +488,15 @@ pub fn nav_item(ui: &mut egui::Ui, index: usize, label: &str, selected: bool) ->
     if hovered && !selected {
         p.rect_filled(rect, 8, SURFACE);
     }
-    p.text(
-        rect.left_center() + egui::vec2(10.0, 0.0),
-        egui::Align2::LEFT_CENTER,
-        format!("{index:02}"),
-        egui::FontId::monospace(11.0),
+    glyph.paint(
+        p,
+        rect.left_center() + egui::vec2(19.0, 0.0),
         if selected {
             ACCENT
+        } else if hovered {
+            TEXT_2
         } else {
-            MUTED.gamma_multiply(0.75)
+            MUTED.gamma_multiply(0.85)
         },
     );
     p.text(

@@ -1,5 +1,5 @@
 use crate::environment_settings::{save, valid_name};
-use crate::ui::{ACCENT, LINE, MUTED, PANEL, SURFACE, WARNING, rule};
+use crate::ui::{ACCENT, LINE, MUTED, PANEL, SURFACE, WARNING, input_frame, rule, text_input};
 use eframe::egui::{self, RichText};
 
 #[derive(Default)]
@@ -98,12 +98,8 @@ impl Variables {
         }).size(12.0).color(MUTED));
         ui.add_space(12.0);
         ui.horizontal(|ui| {
-            ui.add_sized(
-                [ui.available_width().min(420.0), 32.0],
-                egui::TextEdit::singleline(&mut self.query)
-                    .hint_text("Search variable names…")
-                    .vertical_align(egui::Align::Center),
-            );
+            let width = ui.available_width().min(420.0);
+            text_input(ui, &mut self.query, "Search variable names…", width);
             if !self.query.is_empty() && ui.button("Clear").clicked() {
                 self.query.clear();
             }
@@ -323,7 +319,8 @@ impl Variables {
                 ui.set_width(width);
                 if self.pending.is_some() || self.loading.is_some() { ui.spinner(); ui.label("Saving changes…"); ui.disable(); }
                 ui.label("Variable name");
-                let response = ui.add_enabled(self.original.is_none(), egui::TextEdit::singleline(&mut self.name).desired_width(f32::INFINITY).font(egui::FontId::proportional(12.0)).vertical_align(egui::Align::Center));
+                let enabled = self.original.is_none();
+                let response = ui.add_enabled_ui(enabled, |ui| { let width = ui.available_width(); text_input(ui, &mut self.name, "", width) }).inner;
                 if response.changed() && is_list(&self.name) && !self.list { self.list = true; self.items = split_list(&self.value); }
                 if cfg!(windows) && self.original.is_none() { ui.horizontal(|ui| { ui.selectable_value(&mut self.scope, 0, "User"); ui.selectable_value(&mut self.scope, 1, "System"); }); }
                 ui.add_space(8.0);
@@ -344,13 +341,13 @@ impl Variables {
                                 let row_width = (ui.available_width() - 12.0).max(0.0);
                                 let spacing = ui.spacing().item_spacing.x;
                                 let number_width = 30.0;
-                                let button_width = 30.0;
+                                let button_width = 32.0;
                                 let field_width = (row_width - number_width - 2.0 * button_width - 3.0 * spacing).max(1.0);
                                 let row = ui.horizontal(|ui| {
                                     let drag = drag_handle(ui).on_hover_text("Drag to reorder");
                                     if drag.drag_started() { self.dragging = Some(i); }
-                                    ui.add_sized([number_width, 30.0], egui::Label::new(RichText::new(format!("{:02}", i + 1)).size(11.0).color(MUTED)));
-                                    ui.add_sized([field_width, 30.0], egui::TextEdit::singleline(item).desired_width(field_width).font(egui::FontId::proportional(12.0)).vertical_align(egui::Align::Center));
+                                    ui.add_sized([number_width, 32.0], egui::Label::new(RichText::new(format!("{:02}", i + 1)).size(11.0).color(MUTED)));
+                                    text_input(ui, item, "", field_width);
                                     if remove_button(ui).on_hover_text("Remove entry").clicked() { remove = Some(i); }
                                 });
                                 if self.dragging.is_some() && let Some(pointer) = ui.ctx().pointer_interact_pos() {
@@ -375,7 +372,7 @@ impl Variables {
                     }
                     ui.add_space(4.0);
                     if ui.button("+ Add entry").clicked() { self.items.push(String::new()); }
-                } else { ui.add(egui::TextEdit::multiline(&mut self.value).desired_width(f32::INFINITY).desired_rows(5).font(egui::FontId::proportional(12.0)).vertical_align(egui::Align::Center)); }
+                } else { input_frame().show(ui, |ui| { ui.add(egui::TextEdit::multiline(&mut self.value).desired_width(f32::INFINITY).desired_rows(5).frame(false)); }); }
                 ui.add_space(10.0); rule(ui);
                 ui.label(RichText::new(if self.scope == 1 { "Saving requests administrator approval. Restart applications to receive changes." } else { "Restart applications to receive changes." }).size(12.0).color(MUTED));
                 ui.horizontal(|ui| {
@@ -488,7 +485,7 @@ fn move_entry<T>(items: &mut Vec<T>, from: usize, insertion: usize) {
 }
 
 fn drag_handle(ui: &mut egui::Ui) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::drag());
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(30.0, 32.0), egui::Sense::drag());
     let response = response.on_hover_cursor(egui::CursorIcon::Grab);
     let color = if response.hovered() || response.dragged() {
         ACCENT
@@ -508,7 +505,7 @@ fn drag_handle(ui: &mut egui::Ui) -> egui::Response {
 }
 
 fn remove_button(ui: &mut egui::Ui) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::click());
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::click());
     let painter = ui.painter();
     painter.rect_filled(rect, 4.0, if response.hovered() { LINE } else { SURFACE });
     painter.rect_stroke(

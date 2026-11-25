@@ -129,7 +129,9 @@ fn linux_mount_points(table: &[u8], field: usize) -> Vec<PathBuf> {
             let mut path = Vec::with_capacity(raw.len());
             let mut i = 0;
             while i < raw.len() {
-                let octal = raw.get(i + 1..i + 4).filter(|d| d.iter().all(|c| (b'0'..=b'7').contains(c)));
+                let octal = raw
+                    .get(i + 1..i + 4)
+                    .filter(|d| d.iter().all(|c| (b'0'..=b'7').contains(c)));
                 match octal {
                     Some(d) if raw[i] == b'\\' => {
                         path.push((d[0] - b'0') * 64 + (d[1] - b'0') * 8 + (d[2] - b'0'));
@@ -310,7 +312,11 @@ fn scan_with_workers(
     result.root = root.clone();
     #[cfg(target_os = "linux")]
     if crate::volumes::linux_internal_path(&root) {
-        note(&mut result, &root, "System and container storage is excluded from cleanup");
+        note(
+            &mut result,
+            &root,
+            "System and container storage is excluded from cleanup",
+        );
         return result;
     }
     let disks = sysinfo::Disks::new_with_refreshed_list();
@@ -610,10 +616,7 @@ fn inventory(
         let dir = root.join(&relative);
         // Fresh directory checks retain link protection when queued paths change.
         let meta = fs::symlink_metadata(&dir)?;
-        if mounts.contains(&dir)
-            || linked(&meta)
-            || !meta.is_dir()
-            || !same_device(&device, &meta)
+        if mounts.contains(&dir) || linked(&meta) || !meta.is_dir() || !same_device(&device, &meta)
         {
             return Err(io::Error::other(
                 "Contains a mount, link, reparse point, or special file; deletion disabled",
@@ -674,7 +677,9 @@ pub fn delete(root: &Path, candidates: &[Candidate]) -> DeleteReport {
 fn validate_path(root: &Path, path: &Path) -> io::Result<()> {
     #[cfg(target_os = "linux")]
     if crate::volumes::linux_internal_path(path) {
-        return Err(io::Error::other("System and container storage is excluded from cleanup"));
+        return Err(io::Error::other(
+            "System and container storage is excluded from cleanup",
+        ));
     }
     if !root.is_absolute()
         || path == root
@@ -769,7 +774,10 @@ mod tests {
     fn container_storage_is_skipped_in_scan_and_cached_results() {
         let f = Fixture::new();
         f.file(".local/share/docker/volumes/project/package.json", "{}");
-        f.file(".local/share/docker/volumes/project/node_modules/pkg/file", "keep");
+        f.file(
+            ".local/share/docker/volumes/project/node_modules/pkg/file",
+            "keep",
+        );
         f.file("project/package.json", "{}");
         f.file("project/node_modules/pkg/file", "123");
         let scan = f.scan();
@@ -777,7 +785,11 @@ mod tests {
         assert_eq!(scan.entries[0].path, f.0.join("project/node_modules"));
         let container_path = f.0.join(".local/share/docker/volumes/project/node_modules");
         assert!(validate_cached(&scan.root, &container_path, &AtomicBool::new(false)).is_none());
-        let direct = super::scan(&f.0.join(".local/share/docker"), &AtomicBool::new(false), |_| {});
+        let direct = super::scan(
+            &f.0.join(".local/share/docker"),
+            &AtomicBool::new(false),
+            |_| {},
+        );
         assert!(direct.entries.is_empty());
         assert!(direct.skipped > 0);
     }

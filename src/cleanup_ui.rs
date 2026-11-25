@@ -326,7 +326,7 @@ impl Cleanup {
             ctx.request_repaint_after(Duration::from_millis(100));
         }
         egui::CentralPanel::default()
-            .frame(panel(BG, 22))
+            .frame(crate::ui::canvas(22))
             .show(ctx, |ui| {
                 if self.choosing {
                     ui.horizontal(|ui| {
@@ -684,48 +684,34 @@ impl Cleanup {
     fn search_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let search_width = (ui.available_width() - 264.0).max(180.0);
-            ui.allocate_ui_with_layout(
-                egui::vec2(search_width, 36.0),
-                egui::Layout::left_to_right(egui::Align::Center),
-                |ui| {
-                    panel(PANEL, 6)
-                        .stroke(Stroke::new(1.0_f32, LINE))
-                        .corner_radius(4)
-                        .show(ui, |ui| {
-                            ui.set_width(search_width - 12.0);
-                            ui.horizontal(|ui| {
-                                search_glyph(ui);
-                                let input = ui.add_sized(
-                                    [(ui.available_width() - 28.0).max(80.0), 24.0],
-                                    egui::TextEdit::singleline(&mut self.query)
-                                        .hint_text("Search folders, projects, sources…")
-                                        .frame(false),
-                                );
-                                if ui.ctx().input_mut(|i| {
-                                    i.consume_key(egui::Modifiers::COMMAND, egui::Key::F)
-                                }) {
-                                    input.request_focus();
-                                }
-                                let clear = !self.query.is_empty()
-                                    && ui
-                                        .add(egui::Button::new("x").frame(false))
-                                        .on_hover_text("Clear search")
-                                        .clicked();
-                                if clear {
-                                    self.query.clear();
-                                }
-                                if input.changed() || clear {
-                                    self.terms = self
-                                        .query
-                                        .split_whitespace()
-                                        .map(str::to_lowercase)
-                                        .collect();
-                                    self.dirty = true;
-                                }
-                            });
-                        });
-                },
+            let input = text_input(
+                ui,
+                &mut self.query,
+                "Search folders, projects, sources…",
+                search_width - 28.0,
             );
+            if ui
+                .ctx()
+                .input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::F))
+            {
+                input.request_focus();
+            }
+            let clear = !self.query.is_empty()
+                && ui
+                    .add(egui::Button::new("x").frame(false))
+                    .on_hover_text("Clear search")
+                    .clicked();
+            if clear {
+                self.query.clear();
+            }
+            if input.changed() || clear {
+                self.terms = self
+                    .query
+                    .split_whitespace()
+                    .map(str::to_lowercase)
+                    .collect();
+                self.dirty = true;
+            }
             let active = usize::from(!self.source.is_empty()) + usize::from(self.minimum > 0);
             let filter = ui.add(
                 egui::Button::new(if active > 0 {
@@ -734,7 +720,7 @@ impl Cleanup {
                     "Filters".into()
                 })
                 .selected(self.filters_open)
-                .min_size(egui::vec2(82.0, 36.0)),
+                .min_size(egui::vec2(82.0, ui.spacing().interact_size.y)),
             );
             if filter.clicked() {
                 self.filters_open = !self.filters_open;

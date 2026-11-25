@@ -161,9 +161,8 @@ impl VijiDeck {
         #[cfg(feature = "ui-preview")]
         if std::env::var_os("VIJIDECK_SCREENSHOT_TO").is_some() {
             match std::env::var("VIJIDECK_PREVIEW_VIEW").as_deref() {
-                Ok("overview" | "overview-hardware" | "widget") => {
-                    self.active_tool = Tool::Overview
-                }
+                Ok("overview" | "widget") => self.active_tool = Tool::Overview,
+                Ok("computer") => self.active_tool = Tool::Computer,
                 Ok("processes") => self.active_tool = Tool::Processes,
                 Ok("environment") => self.active_tool = Tool::Environment,
                 Ok("docker") => self.active_tool = Tool::Docker,
@@ -206,7 +205,7 @@ impl VijiDeck {
             }
             if !matches!(
                 std::env::var("VIJIDECK_PREVIEW_VIEW").as_deref(),
-                Ok("overview" | "overview-hardware" | "widget")
+                Ok("overview" | "widget")
             ) && self.active_tool == Tool::Overview
             {
                 self.active_tool = Tool::Ports;
@@ -254,6 +253,7 @@ impl VijiDeck {
             Tool::Environment => self.environment.preview_ready(),
             Tool::Processes => self.processes.preview_ready(),
             Tool::Overview => self.overview.preview_ready(),
+            Tool::Computer => self.overview.computer_preview_ready(),
             Tool::Logs => self.logs.preview_ready(),
             Tool::Services => self.services.preview_ready(),
             _ => true,
@@ -292,6 +292,7 @@ impl VijiDeck {
                 .as_ref()
                 .map_or("Disk cleanup", |cleanup| cleanup.status()),
             Tool::Overview => self.overview.status(),
+            Tool::Computer => self.overview.computer_status(),
             Tool::Processes => "Refresh every 2 seconds",
             Tool::Logs => self.logs.status(),
             Tool::Ports if !self.scanned => "Waiting for first scan",
@@ -300,7 +301,7 @@ impl VijiDeck {
         }
     }
 
-    /// Text-only, numbered navigation rail with host details at its foot.
+    /// Icon navigation rail with host details at its foot.
     fn rail(&mut self, ctx: &egui::Context) {
         let width = if ctx.content_rect().width() < 1100.0 {
             196.0
@@ -311,12 +312,16 @@ impl VijiDeck {
             .exact_width(width)
             .resizable(false)
             .show_separator_line(false)
-            .frame(egui::Frame::new().fill(PANEL).inner_margin(egui::Margin {
-                left: 18,
-                right: 14,
-                top: 30,
-                bottom: 20,
-            }))
+            .frame(
+                egui::Frame::new()
+                    .fill(PANEL.gamma_multiply(0.85))
+                    .inner_margin(egui::Margin {
+                        left: 18,
+                        right: 14,
+                        top: 30,
+                        bottom: 20,
+                    }),
+            )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_space(10.0);
@@ -335,10 +340,10 @@ impl VijiDeck {
                 });
                 ui.spacing_mut().item_spacing.y = 2.0;
                 if self.logs_only {
-                    let _ = nav_item(ui, 1, "Logs", true);
+                    let _ = nav_item(ui, Tool::Logs.glyph(), "Logs", true);
                 } else {
-                    for (index, tool) in Tool::ALL.into_iter().enumerate() {
-                        if nav_item(ui, index + 1, tool.label(), self.active_tool == tool)
+                    for tool in Tool::ALL {
+                        if nav_item(ui, tool.glyph(), tool.label(), self.active_tool == tool)
                             .on_hover_text(tool.title())
                             .clicked()
                         {
@@ -499,6 +504,7 @@ impl eframe::App for VijiDeck {
         {
             self.refresh();
         }
+        crate::ui::backdrop(ctx);
         self.rail(ctx);
         match self.active_tool {
             Tool::Docker => self.docker.show(ctx),
@@ -506,6 +512,7 @@ impl eframe::App for VijiDeck {
             Tool::Environment => self.environment.show(ctx),
             Tool::Processes => self.processes.show(ctx),
             Tool::Logs => self.logs.show(ctx),
+            Tool::Computer => self.overview.show_computer(ctx),
             Tool::Overview => {
                 if self.overview.show(ctx) {
                     self.active_tool = Tool::Cleanup;

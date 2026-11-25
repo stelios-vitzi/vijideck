@@ -191,12 +191,12 @@ impl Processes {
         {
             self.refresh();
         }
-        egui::CentralPanel::default().frame(panel(BG, 24)).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(crate::ui::canvas(24)).show(ctx, |ui| {
             ui.heading("Processes");
             ui.label(RichText::new("Running applications and background processes").color(MUTED));
             ui.add_space(12.0);
             ui.horizontal(|ui| {
-                ui.add_sized([300.0, 34.0], egui::TextEdit::singleline(&mut self.query).hint_text("Search name, PID or executable path").vertical_align(egui::Align::Center));
+                text_input(ui, &mut self.query, "Search name, PID or executable path", 300.0);
                 if ui.button("Refresh").clicked() { self.refresh(); }
                 ui.checkbox(&mut self.auto, "Auto refresh");
                 ui.label(format!("{} processes", self.rows.len()));

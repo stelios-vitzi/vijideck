@@ -4,30 +4,55 @@ use egui_extras::{Column, TableBuilder};
 
 impl VijiDeck {
     pub(super) fn show_ports(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("process_inspector")
-            .default_width(350.0)
-            .width_range(310.0..=(ctx.content_rect().width() - 548.0).clamp(310.0, 500.0))
-            .frame(panel(PANEL, 22))
-            .show(ctx, |ui| self.inspector(ui));
         egui::CentralPanel::default()
-            .frame(panel(BG, 28))
+            .frame(crate::ui::canvas(28))
             .show(ctx, |ui| self.main_panel(ui));
+        self.inspector_modal(ctx);
         self.confirm_stop(ctx);
     }
 
+    /// The socket inspector, opened over the table when a row is clicked.
+    fn inspector_modal(&mut self, ctx: &egui::Context) {
+        if self.selected.is_none() {
+            return;
+        }
+        let modal_id = egui::Id::new("port_inspector");
+        let screen = ctx.content_rect();
+        let width = (screen.width() - 64.0).clamp(320.0, 480.0);
+        let height = (screen.height() - 96.0).clamp(360.0, 640.0);
+        let modal = egui::Modal::new(modal_id)
+            .area(egui::Modal::default_area(modal_id).fade_in(!cfg!(feature = "ui-preview")))
+            .frame(
+                panel(PANEL, 22)
+                    .stroke(Stroke::new(1.0_f32, LINE))
+                    .corner_radius(8),
+            )
+            .show(ctx, |ui| {
+                ui.set_width(width);
+                ui.set_height(height);
+                self.inspector(ui);
+            });
+        // Escape and clicks outside close the inspector, unless the stop
+        // confirmation is stacked above it.
+        if modal.should_close() && self.confirmation.is_none() {
+            self.selected = None;
+        }
+    }
+
     fn inspector(&mut self, ui: &mut egui::Ui) {
-        let compact = ui.available_height() < 600.0;
-        ui.add_space(if compact { 0.0 } else { 6.0 });
+        let compact = ui.available_height() < 480.0;
         ui.horizontal(|ui| {
             caption(ui, "INSPECTOR");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if self.selected.is_some()
-                    && ui
-                        .add(
-                            egui::Button::new(RichText::new("Clear").size(11.0).color(MUTED))
-                                .frame(false),
-                        )
-                        .clicked()
+                if ui
+                    .add(
+                        egui::Button::new(RichText::new("Close").size(12.0).color(TEXT_2))
+                            .fill(SURFACE)
+                            .stroke(Stroke::NONE)
+                            .corner_radius(255),
+                    )
+                    .on_hover_text("Esc")
+                    .clicked()
                 {
                     self.selected = None;
                 }
@@ -35,15 +60,6 @@ impl VijiDeck {
         });
         ui.add_space(if compact { 6.0 } else { 12.0 });
         let Some(key) = self.selected.clone() else {
-            ui.add_space(72.0);
-            reactor(ui, 56.0);
-            ui.add_space(18.0);
-            ui.label(RichText::new("Awaiting selection").size(21.0));
-            ui.label(
-                RichText::new("Choose a socket to inspect its process, endpoints, and activity.")
-                    .size(13.0)
-                    .color(MUTED),
-            );
             return;
         };
         let Some(port) = self.snapshot.ports.iter().find(|p| p.key == key) else {
@@ -289,32 +305,26 @@ impl VijiDeck {
         let focus = ui
             .ctx()
             .input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::F));
-        egui::Frame::new()
-            .fill(PANEL)
-            .stroke(Stroke::new(1.0_f32, LINE))
-            .corner_radius(5)
-            .inner_margin(egui::Margin::symmetric(12, 10))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    search_icon(ui);
-                    let width = (ui.available_width() - 35.0).max(100.0);
-                    let search = ui.add_sized(
-                        [width, 22.0],
-                        egui::TextEdit::singleline(&mut self.query)
-                            .font(egui::FontId::proportional(13.0))
-                            .hint_text("Search ports, processes, PIDs, addresses…")
-                            .frame(false),
-                    );
-                    if focus {
-                        search.request_focus();
-                    }
-                    if !self.query.is_empty()
-                        && ui.small_button("x").on_hover_text("Clear search").clicked()
-                    {
-                        self.query.clear();
-                    }
-                });
-            });
+        ui.horizontal(|ui| {
+            let width = (ui.available_width() - 30.0).max(120.0);
+            let search = text_input(
+                ui,
+                &mut self.query,
+                "Search ports, processes, PIDs, addresses…",
+                width,
+            );
+            if focus {
+                search.request_focus();
+            }
+            if !self.query.is_empty()
+                && ui
+                    .add(egui::Button::new("x").frame(false))
+                    .on_hover_text("Clear search")
+                    .clicked()
+            {
+                self.query.clear();
+            }
+        });
         ui.add_space(10.0);
         ui.horizontal_wrapped(|ui| {
             for (i, text) in ["All", "TCP", "UDP"].iter().enumerate() {
@@ -366,7 +376,7 @@ impl VijiDeck {
         ui.horizontal(|ui| {
             caption(ui, &format!("{} socket entries", rows.len()));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                caption(ui, "Select a row to inspect");
+                caption(ui, "Click a row to inspect");
             });
         });
         ui.add_space(8.0);
@@ -580,6 +590,7 @@ impl VijiDeck {
                     ));
                     if response.clicked() {
                         self.selected = Some(port.key.clone());
+                        self.inspector_tab = 0;
                     }
                 });
             });
@@ -661,22 +672,6 @@ fn inline_stat(ui: &mut egui::Ui, value: usize, label: &str, color: egui::Color3
         ui.label(RichText::new(value.to_string()).size(20.0).color(color));
         ui.label(RichText::new(label).size(11.0).color(MUTED));
     });
-}
-
-fn search_icon(ui: &mut egui::Ui) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
-    ui.painter().circle_stroke(
-        rect.center() - egui::vec2(2.0, 2.0),
-        4.5,
-        Stroke::new(1.2_f32, MUTED),
-    );
-    ui.painter().line_segment(
-        [
-            rect.center() + egui::vec2(1.5, 1.5),
-            rect.right_bottom() - egui::vec2(2.0, 2.0),
-        ],
-        Stroke::new(1.2_f32, MUTED),
-    );
 }
 
 fn bytes(value: u64) -> String {

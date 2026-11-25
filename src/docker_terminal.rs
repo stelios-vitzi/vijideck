@@ -14,23 +14,50 @@ pub fn open(id: &str) -> Result<String, String> {
 fn detach(mut command: Command) -> std::io::Result<()> {
     // A newly allocated Windows console needs its own interactive standard handles.
     #[cfg(not(windows))]
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     let mut child = command.spawn()?;
-    std::thread::spawn(move || { child.wait().ok(); });
+    std::thread::spawn(move || {
+        child.wait().ok();
+    });
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
 fn terminal_candidates(id: &str, desktop: &str) -> Vec<(&'static str, Vec<String>)> {
     let mut terminals = if desktop.to_lowercase().contains("kde") {
-        vec![("konsole", "-e"), ("x-terminal-emulator", "-e"), ("gnome-terminal", "--")]
+        vec![
+            ("konsole", "-e"),
+            ("x-terminal-emulator", "-e"),
+            ("gnome-terminal", "--"),
+        ]
     } else {
-        vec![("x-terminal-emulator", "-e"), ("gnome-terminal", "--"), ("konsole", "-e")]
+        vec![
+            ("x-terminal-emulator", "-e"),
+            ("gnome-terminal", "--"),
+            ("konsole", "-e"),
+        ]
     };
-    terminals.extend([("xfce4-terminal", "-x"), ("kitty", "--"), ("alacritty", "-e"), ("xterm", "-e")]);
-    terminals.into_iter().map(|(exe, separator)| {
-        (exe, [separator, "docker", "exec", "-it", id, "sh"].into_iter().map(str::to_owned).collect())
-    }).collect()
+    terminals.extend([
+        ("xfce4-terminal", "-x"),
+        ("kitty", "--"),
+        ("alacritty", "-e"),
+        ("xterm", "-e"),
+    ]);
+    terminals
+        .into_iter()
+        .map(|(exe, separator)| {
+            (
+                exe,
+                [separator, "docker", "exec", "-it", id, "sh"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 #[cfg(target_os = "linux")]
@@ -82,7 +109,12 @@ mod tests {
     use super::*;
     #[test]
     fn rejects_command_text_in_place_of_container_id() {
-        for id in ["--help", "container; touch /tmp/unsafe", "", &"z".repeat(64)] {
+        for id in [
+            "--help",
+            "container; touch /tmp/unsafe",
+            "",
+            &"z".repeat(64),
+        ] {
             assert!(open(id).unwrap_err().contains("invalid container ID"));
         }
     }
@@ -92,7 +124,14 @@ mod tests {
         let id = "a".repeat(64);
         for desktop in ["KDE", "GNOME"] {
             let candidates = terminal_candidates(&id, desktop);
-            assert_eq!(candidates[0].0, if desktop == "KDE" { "konsole" } else { "x-terminal-emulator" });
+            assert_eq!(
+                candidates[0].0,
+                if desktop == "KDE" {
+                    "konsole"
+                } else {
+                    "x-terminal-emulator"
+                }
+            );
             for (_, args) in candidates {
                 assert_eq!(&args[1..], ["docker", "exec", "-it", &id, "sh"]);
             }

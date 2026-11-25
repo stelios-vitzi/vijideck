@@ -1,9 +1,5 @@
 use serde_json::Value;
-use std::{
-    process::Command,
-    sync::OnceLock,
-    time::Duration,
-};
+use std::{process::Command, sync::OnceLock, time::Duration};
 
 pub const LIMIT: usize = 2000;
 pub fn default_source() -> usize {

@@ -167,7 +167,7 @@ impl Docker {
         let mut request = None;
         let mut open_logs = None;
         let mut open_terminal = None;
-        egui::CentralPanel::default().frame(panel(BG, 28)).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(crate::ui::canvas(28)).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("Docker");
@@ -201,11 +201,7 @@ impl Docker {
             }
             ui.horizontal_wrapped(|ui| {
                 let width = (ui.available_width() - 300.0).clamp(180.0, 480.0);
-                egui::Frame::new().fill(PANEL).stroke(egui::Stroke::new(1.0_f32, LINE)).corner_radius(5)
-                    .inner_margin(egui::Margin::symmetric(12, 9)).show(ui, |ui| {
-                        ui.add_sized([width, 22.0], egui::TextEdit::singleline(&mut self.query)
-                            .hint_text("Search containers, images or ports…").frame(false));
-                    });
+                text_input(ui, &mut self.query, "Search containers, images or ports…", width + 26.0);
                 ui.checkbox(&mut self.running_only, "Running only");
                 ui.checkbox(&mut self.auto, "Auto refresh");
             });

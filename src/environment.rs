@@ -256,7 +256,7 @@ impl Environment {
             self.path_notice = Some(error);
         }
         self.finish_checks();
-        egui::CentralPanel::default().frame(panel(BG, 28)).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(crate::ui::canvas(28)).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.heading("Developer environment");
@@ -277,18 +277,9 @@ impl Environment {
             let focus_search = ui.ctx().input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::F));
             ui.horizontal(|ui| {
                 let width = (ui.available_width() - 130.0).clamp(200.0, 520.0);
-                egui::Frame::new().fill(PANEL).stroke(egui::Stroke::new(1.0_f32, LINE)).corner_radius(5).inner_margin(egui::Margin::symmetric(12, 9)).show(ui, |ui| {
-                    ui.set_width(width - 24.0);
-                    ui.horizontal(|ui| {
-                        let (rect, _) = ui.allocate_exact_size(egui::vec2(16.0, 18.0), egui::Sense::hover());
-                        let center = rect.center() + egui::vec2(-2.0, -2.0);
-                        ui.painter().circle_stroke(center, 4.5, egui::Stroke::new(1.2_f32, MUTED));
-                        ui.painter().line_segment([center + egui::vec2(3.2, 3.2), center + egui::vec2(7.0, 7.0)], egui::Stroke::new(1.2_f32, MUTED));
-                        let input = ui.add_sized([(ui.available_width() - 32.0).max(80.0), 22.0], egui::TextEdit::singleline(&mut self.query).hint_text("Search tools, versions or paths...").frame(false));
-                        if focus_search { input.request_focus(); }
-                        if !self.query.is_empty() && ui.add(egui::Button::new("x").frame(false)).on_hover_text("Clear search").clicked() { self.query.clear(); }
-                    });
-                });
+                let input = text_input(ui, &mut self.query, "Search tools, versions or paths…", width);
+                if focus_search { input.request_focus(); }
+                if !self.query.is_empty() && ui.add(egui::Button::new("x").frame(false)).on_hover_text("Clear search").clicked() { self.query.clear(); }
                 ui.label(RichText::new(format!("{} installations", self.entries.len())).size(12.0).color(MUTED));
             });
             ui.add_space(8.0);

@@ -28,7 +28,8 @@ impl Container {
         let text = format!(
             "{} {} {} {} {} {} {}",
             self.id, self.name, self.image, self.status, self.ports, self.project, self.service
-        ).to_lowercase();
+        )
+        .to_lowercase();
         query.iter().all(|word| text.contains(word))
     }
 }
@@ -40,7 +41,9 @@ pub(super) fn parse(text: &str) -> Result<Vec<Container>, String> {
             let value: serde_json::Value = serde_json::from_str(line)
                 .map_err(|error| format!("Invalid Docker response: {error}"))?;
             let get = |key: &str| {
-                value[key].as_str().map(str::to_owned)
+                value[key]
+                    .as_str()
+                    .map(str::to_owned)
                     .ok_or_else(|| format!("Docker response is missing {key}"))
             };
             let id = get("id")?;
@@ -82,7 +85,10 @@ pub(super) fn display_rows(
         if container.project.is_empty() {
             standalone.push(container.clone());
         } else {
-            groups.entry(container.project.clone()).or_default().push(container.clone());
+            groups
+                .entry(container.project.clone())
+                .or_default()
+                .push(container.clone());
         }
     }
     let query = query.to_lowercase();
@@ -109,17 +115,28 @@ pub(super) fn display_rows(
             name: project.clone(),
             project: true,
             child: false,
-            running: members.iter().filter(|container| container.state == "running").count(),
+            running: members
+                .iter()
+                .filter(|container| container.state == "running")
+                .count(),
             containers: members.clone(),
         });
         if expanded.contains(&project) {
-            rows.extend(members.iter().filter(|container| visible(container))
-                .map(|container| container_row(container, true)));
+            rows.extend(
+                members
+                    .iter()
+                    .filter(|container| visible(container))
+                    .map(|container| container_row(container, true)),
+            );
         }
     }
     standalone.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
-    rows.extend(standalone.iter().filter(|container| visible(container))
-        .map(|container| container_row(container, false)));
+    rows.extend(
+        standalone
+            .iter()
+            .filter(|container| visible(container))
+            .map(|container| container_row(container, false)),
+    );
     rows
 }
 
@@ -153,7 +170,9 @@ mod tests {
 
     #[test]
     fn parses_compose_and_standalone_and_searches() {
-        let row = |project: &str| serde_json::json!({"id": "a".repeat(64), "name":"web-1", "image":"nginx", "state":"running", "status":"Up 2 hours (healthy)", "ports":"0.0.0.0:8080->80/tcp", "project":project, "service":"web"}).to_string();
+        let row = |project: &str| {
+            serde_json::json!({"id": "a".repeat(64), "name":"web-1", "image":"nginx", "state":"running", "status":"Up 2 hours (healthy)", "ports":"0.0.0.0:8080->80/tcp", "project":project, "service":"web"}).to_string()
+        };
         let containers = parse(&format!("{}\n{}\n", row("shop"), row(""))).unwrap();
         assert_eq!(containers.len(), 2);
         assert_eq!(containers[0].project, "shop");
@@ -167,19 +186,42 @@ mod tests {
     #[test]
     fn groups_are_stable_and_actions_keep_hidden_members() {
         let make = |id: char, name: &str, state: &str, project: &str| Container {
-            id: id.to_string().repeat(64), name: name.into(), image: "image".into(), state: state.into(),
-            status: state.into(), ports: String::new(), project: project.into(), service: String::new(),
+            id: id.to_string().repeat(64),
+            name: name.into(),
+            image: "image".into(),
+            state: state.into(),
+            status: state.into(),
+            ports: String::new(),
+            project: project.into(),
+            service: String::new(),
         };
-        let mut inventory = vec![make('a', "web", "running", "shop"), make('b', "db", "exited", "shop"), make('c', "cache", "running", "")];
+        let mut inventory = vec![
+            make('a', "web", "running", "shop"),
+            make('b', "db", "exited", "shop"),
+            make('c', "cache", "running", ""),
+        ];
         let expanded = HashSet::from(["shop".into()]);
         let rows = display_rows(&inventory, &expanded, "", false);
-        assert_eq!(rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["shop", "db", "web", "cache"]);
+        assert_eq!(
+            rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(),
+            ["shop", "db", "web", "cache"]
+        );
         assert!(rows[1].child);
         let filtered = display_rows(&inventory, &expanded, "web", true);
         assert_eq!(filtered.len(), 2);
-        assert_eq!(filtered[0].containers.len(), 2, "group actions must include filtered children");
+        assert_eq!(
+            filtered[0].containers.len(),
+            2,
+            "group actions must include filtered children"
+        );
         inventory.reverse();
-        assert_eq!(display_rows(&inventory, &expanded, "", false).iter().map(|r| &r.key).collect::<Vec<_>>(), rows.iter().map(|r| &r.key).collect::<Vec<_>>());
+        assert_eq!(
+            display_rows(&inventory, &expanded, "", false)
+                .iter()
+                .map(|r| &r.key)
+                .collect::<Vec<_>>(),
+            rows.iter().map(|r| &r.key).collect::<Vec<_>>()
+        );
     }
 
     #[test]

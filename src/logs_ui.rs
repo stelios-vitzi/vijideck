@@ -388,7 +388,7 @@ impl Logs {
             self.refresh(ctx);
         }
         egui::TopBottomPanel::top("log_controls")
-            .frame(panel(BG, 22))
+            .frame(crate::ui::canvas(22))
             .show(ctx, |ui| {
                 ui.heading("System logs");
                 caption(
@@ -460,11 +460,11 @@ impl Logs {
                 }
                 ui.horizontal(|ui| {
                     let search_width = (ui.available_width() - 150.0).max(160.0);
-                    let search = ui.add_sized(
-                        [search_width, ui.spacing().interact_size.y],
-                        egui::TextEdit::singleline(&mut self.query)
-                            .hint_text("Search message, source, event ID…")
-                            .desired_width(search_width),
+                    let search = text_input(
+                        ui,
+                        &mut self.query,
+                        "Search message, source, event ID…",
+                        search_width,
                     );
                     if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::F)) {
                         search.request_focus();
@@ -556,7 +556,7 @@ impl Logs {
                 });
         }
         egui::CentralPanel::default()
-            .frame(panel(BG, 22))
+            .frame(crate::ui::canvas(22))
             .show(ctx, |ui| {
                 let Some(snapshot) = &self.snapshot else {
                     if self.pending.is_none() && ui.button("Open system logs").clicked() {

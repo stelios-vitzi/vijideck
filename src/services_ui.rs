@@ -176,7 +176,7 @@ impl Services {
             }
         }
         egui::CentralPanel::default()
-            .frame(panel(BG, 28))
+            .frame(crate::ui::canvas(28))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -228,11 +228,7 @@ impl Services {
                         self.scanned = false;
                         self.launch(ctx, None);
                     }
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.query)
-                            .hint_text("Search services…")
-                            .desired_width(210.0),
-                    );
+                    text_input(ui, &mut self.query, "Search services…", 236.0);
                     egui::ComboBox::from_id_salt("service-state")
                         .selected_text(
                             ["All states", "Running", "Stopped", "Paused", "Failed"][self.state],

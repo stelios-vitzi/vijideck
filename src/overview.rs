@@ -210,7 +210,7 @@ impl Overview {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgba_unmultiplied(6, 11, 20, 235))
+                    .fill(Color32::from_rgba_unmultiplied(16, 23, 34, 238))
                     .stroke(Stroke::new(1.0_f32, LINE))
                     .corner_radius(16)
                     .inner_margin(egui::Margin::same(10)),
@@ -360,27 +360,11 @@ impl Overview {
     /// Draws the overview. Returns `true` when the user asks to free up space.
     pub fn show(&self, ctx: &egui::Context) -> bool {
         let mut open_cleanup = false;
-        let width = ctx.content_rect().width();
-        let side = (width * 0.04).clamp(16.0, 64.0) as i8;
-        let frame = egui::Frame::new().fill(BG).inner_margin(egui::Margin {
-            left: side,
-            right: side,
-            top: 8,
-            bottom: 0,
-        });
-        egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
+        egui::CentralPanel::default().frame(page_frame(ctx)).show(ctx, |ui| {
             let scroll = egui::ScrollArea::vertical()
                 .id_salt("overview_scroll")
                 .auto_shrink([false, false]);
-            #[cfg(feature = "ui-preview")]
-            let scroll = if std::env::var("VIJIDECK_PREVIEW_VIEW").as_deref()
-                == Ok("overview-hardware")
-            {
-                scroll.vertical_scroll_offset(1040.0)
-            } else {
-                scroll
-            };
-            scroll.show(ui, |ui| {
+            scroll.show(ui, |ui| page_body(ui, |ui| {
                 ui.add_space(40.0);
                 let Some(s) = &self.sample else {
                     ui.vertical_centered(|ui| {
@@ -430,8 +414,6 @@ impl Overview {
                 ui.add_space(72.0);
                 self.processor(ui, s);
                 ui.add_space(64.0);
-                self.inventory(ui);
-                ui.add_space(64.0);
                 networks(ui, s);
                 ui.add_space(24.0);
                 caption(
@@ -439,7 +421,7 @@ impl Overview {
                     "Unavailable sensors and device details depend on operating system and driver support.",
                 );
                 ui.add_space(40.0);
-            });
+            }));
         });
         open_cleanup
     }
@@ -668,6 +650,51 @@ impl Overview {
         }
     }
 
+    /// Status line for the Computer page.
+    pub fn computer_status(&self) -> &str {
+        if self.hardware.is_none() {
+            "Reading system hardware"
+        } else {
+            "Hardware inventory"
+        }
+    }
+
+    #[cfg(feature = "ui-preview")]
+    pub fn computer_preview_ready(&self) -> bool {
+        self.hardware.is_some()
+    }
+
+    /// Draws the Computer page: the full hardware inventory of this machine.
+    pub fn show_computer(&self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(page_frame(ctx))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("computer_scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        page_body(ui, |ui| {
+                            ui.add_space(40.0);
+                            ui.label(
+                                RichText::new(&self.host)
+                                    .font(medium(24.0))
+                                    .extra_letter_spacing(-0.4),
+                            );
+                            ui.add_space(2.0);
+                            caption(ui, &format!("{} · {}", self.os, System::cpu_arch()));
+                            ui.add_space(40.0);
+                            self.inventory(ui);
+                            ui.add_space(24.0);
+                            caption(
+                                ui,
+                                "Device details depend on operating system and driver support.",
+                            );
+                            ui.add_space(40.0);
+                        })
+                    });
+            });
+    }
+
     fn inventory(&self, ui: &mut egui::Ui) {
         eyebrow(ui, "Hardware inventory");
         ui.add_space(6.0);
@@ -726,6 +753,40 @@ impl Overview {
             caption(ui, note);
         }
     }
+}
+
+/// Transparent page frame with proportional side margins.
+/// Horizontal page margin, scaled with the window width.
+fn page_side(ctx: &egui::Context) -> i8 {
+    (ctx.content_rect().width() * 0.04).clamp(16.0, 64.0) as i8
+}
+
+/// Space between the window edge and the vertical scrollbar.
+const SCROLLBAR_EDGE: i8 = 4;
+
+/// Outer page frame. The right margin is kept small so the scrollbar sits
+/// near the window edge; [`page_body`] adds the rest as a content gutter.
+fn page_frame(ctx: &egui::Context) -> egui::Frame {
+    egui::Frame::new()
+        .fill(Color32::TRANSPARENT)
+        .inner_margin(egui::Margin {
+            left: page_side(ctx),
+            right: SCROLLBAR_EDGE,
+            top: 8,
+            bottom: 0,
+        })
+}
+
+/// Lays out scrolled page content with a right gutter, so the floating
+/// scrollbar never overlaps it.
+fn page_body(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
+    let gutter = page_side(ui.ctx()).saturating_sub(SCROLLBAR_EDGE);
+    egui::Frame::new()
+        .inner_margin(egui::Margin {
+            right: gutter,
+            ..Default::default()
+        })
+        .show(ui, add_contents);
 }
 
 /// Gauge label with a small coloured dot, centred in its column.
