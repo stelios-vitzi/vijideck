@@ -74,7 +74,14 @@ impl VijiDeck {
                 .unwrap_or("Process details unavailable"),
         );
         ui.horizontal(|ui| {
-            dot(ui, if port.state == "Listen" { CYAN } else { MUTED });
+            dot(
+                ui,
+                if port.state == "Listen" {
+                    ACCENT
+                } else {
+                    MUTED
+                },
+            );
             caption(
                 ui,
                 &key.pid
@@ -170,8 +177,10 @@ impl VijiDeck {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .add(
-                            egui::Button::new(RichText::new("Copy details").size(11.0).color(CYAN))
-                                .frame(false),
+                            egui::Button::new(
+                                RichText::new("Copy details").size(11.0).color(ACCENT),
+                            )
+                            .frame(false),
                         )
                         .clicked()
                     {
@@ -204,9 +213,9 @@ impl VijiDeck {
                 if ui
                     .add_enabled(
                         can_stop,
-                        egui::Button::new(RichText::new("Force kill").color(RED))
-                            .fill(RED.gamma_multiply(0.07))
-                            .stroke(Stroke::new(1.0_f32, RED.gamma_multiply(0.4)))
+                        egui::Button::new(RichText::new("Force kill").color(DANGER))
+                            .fill(DANGER.gamma_multiply(0.07))
+                            .stroke(Stroke::new(1.0_f32, DANGER.gamma_multiply(0.4)))
                             .min_size(egui::vec2(100.0, 32.0)),
                     )
                     .on_disabled_hover_text(
@@ -270,9 +279,9 @@ impl VijiDeck {
                 .iter()
                 .filter(|p| p.key.protocol == "UDP")
                 .count();
-            inline_stat(ui, count, "listening", CYAN);
+            inline_stat(ui, count, "listening", ACCENT);
             ui.add_space(16.0);
-            inline_stat(ui, udp, "UDP bound", AMBER);
+            inline_stat(ui, udp, "UDP bound", WARNING);
             ui.add_space(16.0);
             inline_stat(ui, self.snapshot.processes.len(), "processes", TEXT);
         });
@@ -416,7 +425,7 @@ impl VijiDeck {
                             .add(
                                 egui::Button::new(
                                     RichText::new(text).size(10.0).color(if self.sort == i {
-                                        CYAN
+                                        ACCENT
                                     } else {
                                         MUTED
                                     }),
@@ -457,7 +466,7 @@ impl VijiDeck {
                                 ui.painter().vline(
                                     rect.left(),
                                     rect.y_range(),
-                                    Stroke::new(2.0_f32, CYAN),
+                                    Stroke::new(2.0_f32, ACCENT),
                                 );
                             }
                             ui.add_space(2.0);
@@ -465,15 +474,15 @@ impl VijiDeck {
                                 RichText::new(port.key.local.port().to_string())
                                     .monospace()
                                     .size(14.0)
-                                    .color(if selected { CYAN } else { TEXT }),
+                                    .color(if selected { ACCENT } else { TEXT }),
                             );
                         });
                     });
                     row.col(|ui| {
                         let color = if port.key.protocol == "TCP" {
-                            CYAN
+                            ACCENT
                         } else {
-                            AMBER
+                            WARNING
                         };
                         let text = ui.painter().layout_no_wrap(
                             port.key.protocol.to_owned(),
@@ -545,7 +554,14 @@ impl VijiDeck {
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
-                                dot(ui, if port.state == "Listen" { CYAN } else { MUTED });
+                                dot(
+                                    ui,
+                                    if port.state == "Listen" {
+                                        ACCENT
+                                    } else {
+                                        MUTED
+                                    },
+                                );
                                 ui.add(
                                     egui::Label::new(
                                         RichText::new(&port.state).size(11.0).color(MUTED),
@@ -578,7 +594,7 @@ impl VijiDeck {
                 .corner_radius(4)
                 .show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.colored_label(if *error { RED } else { CYAN }, text);
+                        ui.colored_label(if *error { DANGER } else { ACCENT }, text);
                         dismiss = ui.small_button("Dismiss").clicked();
                     });
                 });
@@ -589,7 +605,7 @@ impl VijiDeck {
         }
         if !self.snapshot.warnings.is_empty() {
             egui::CollapsingHeader::new(
-                RichText::new("Some socket information is restricted").color(AMBER),
+                RichText::new("Some socket information is restricted").color(WARNING),
             )
             .show(ui, |ui| {
                 for warning in &self.snapshot.warnings {
@@ -616,16 +632,16 @@ impl VijiDeck {
                 ui.add_space(12.0);
                 ui.heading(if request.force { "Force kill process?" } else { "Terminate process?" });
                 ui.add_space(8.0);
-                ui.label(RichText::new(format!("{} / PID {}", request.name, request.socket.pid.unwrap_or_default())).color(CYAN));
+                ui.label(RichText::new(format!("{} / PID {}", request.name, request.socket.pid.unwrap_or_default())).color(ACCENT));
                 ui.add_space(12.0);
                 ui.label("This stops the entire process, including its other ports. Unsaved work may be lost.");
-                if request.force { ui.label(RichText::new("The process will not have an opportunity to clean up.").color(RED)); }
+                if request.force { ui.label(RichText::new("The process will not have an opportunity to clean up.").color(DANGER)); }
                 ui.add_space(20.0);
                 rule(ui);
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() { self.confirmation = None; }
-                    if ui.button(RichText::new(if request.force { "Force kill" } else { "Terminate" }).color(RED)).clicked() {
+                    if ui.button(RichText::new(if request.force { "Force kill" } else { "Terminate" }).color(DANGER)).clicked() {
                         self.busy = self.tx.send(Command::Stop(request)).is_ok();
                         self.confirmation = None;
                     }

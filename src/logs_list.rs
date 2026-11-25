@@ -2,7 +2,7 @@ use crate::{logs::Entry, ui::*};
 use eframe::egui::{self, Color32, Stroke};
 
 const ROW_HEIGHT: f32 = 48.0;
-const SELECTED: Color32 = Color32::from_rgb(17, 39, 48);
+const SELECTED: Color32 = crate::ui::SELECTED_FILL;
 
 #[derive(Default)]
 pub struct LogList {
@@ -76,12 +76,12 @@ impl LogList {
                         rect,
                         4.0,
                         if is_selected { SELECTED } else { SURFACE },
-                        Stroke::new(1.0_f32, if is_selected { CYAN } else { LINE }),
+                        Stroke::new(1.0_f32, if is_selected { ACCENT } else { LINE }),
                         egui::StrokeKind::Inside,
                     );
                     let level_color = match entry.level.as_str() {
-                        "Critical" | "Error" => RED,
-                        "Warning" => AMBER,
+                        "Critical" | "Error" => DANGER,
+                        "Warning" => WARNING,
                         _ => MUTED,
                     };
                     let painter = ui.painter().with_clip_rect(

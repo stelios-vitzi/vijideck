@@ -202,7 +202,7 @@ impl Processes {
                 ui.label(format!("{} processes", self.rows.len()));
             });
             if let Some(result) = &self.notice {
-                ui.label(RichText::new(match result { Ok(s) | Err(s) => s }).color(if result.is_ok() { CYAN } else { RED }));
+                ui.label(RichText::new(match result { Ok(s) | Err(s) => s }).color(if result.is_ok() { ACCENT } else { DANGER }));
             }
             ui.label(RichText::new("CPU may exceed 100% across cores. Protected processes may hide their executable path.").small().color(MUTED));
             let query = self.query.trim().to_lowercase();
@@ -229,7 +229,7 @@ impl Processes {
                     body.rows(36.0, ordered.len(), |mut row| {
                         match &ordered[row.index()] {
                         ProcessRow::Section(section) => {
-                            row.col(|ui| { ui.label(RichText::new(*section).strong().color(CYAN)); });
+                            row.col(|ui| { ui.label(RichText::new(*section).strong().color(ACCENT)); });
                             for _ in 0..5 { row.col(|_| {}); }
                         }
                         ProcessRow::AppGroup { name, pid, count, icon, cpu, memory } => {
@@ -238,7 +238,7 @@ impl Processes {
                                 let (r, response) = ui.allocate_exact_size(egui::vec2(14.0, 20.0), egui::Sense::click());
                                 let c = r.center();
                                 let points = if expanded { vec![c + egui::vec2(-3.5, -2.0), c + egui::vec2(3.5, -2.0), c + egui::vec2(0.0, 2.5)] } else { vec![c + egui::vec2(-2.0, -3.5), c + egui::vec2(-2.0, 3.5), c + egui::vec2(2.5, 0.0)] };
-                                ui.painter().add(egui::Shape::convex_polygon(points, if response.hovered() { CYAN } else { MUTED }, egui::Stroke::NONE));
+                                ui.painter().add(egui::Shape::convex_polygon(points, if response.hovered() { ACCENT } else { MUTED }, egui::Stroke::NONE));
                                 if response.clicked() && !self.expanded.remove(pid) { self.expanded.insert(*pid); }
                                 if let Some(icon) = icon { ui.add(egui::Image::new(icon).fit_to_exact_size(egui::vec2(20.0, 20.0))); }
                                 else { let (r, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover()); ui.painter().circle_filled(r.center(), 4.0, MUTED); }
@@ -282,7 +282,10 @@ impl Processes {
                     if ui.button("Cancel").clicked() {
                         self.confirmation = None;
                     }
-                    if ui.button(RichText::new("End process").color(RED)).clicked() {
+                    if ui
+                        .button(RichText::new("End process").color(DANGER))
+                        .clicked()
+                    {
                         self.tx
                             .send(Command::Kill(KillRequest {
                                 identity: crate::process_control::Identity {
@@ -524,7 +527,7 @@ fn folder_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {
         )
         .on_hover_text("Open executable folder");
     let r = response.rect.shrink(8.0);
-    let color = if enabled { CYAN } else { MUTED };
+    let color = if enabled { ACCENT } else { MUTED };
     let p = ui.painter();
     p.rect_filled(
         egui::Rect::from_min_size(
@@ -553,11 +556,11 @@ fn kill_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {
     let p = ui.painter();
     p.line_segment(
         [r.left_top(), r.right_bottom()],
-        egui::Stroke::new(1.5_f32, RED),
+        egui::Stroke::new(1.5_f32, DANGER),
     );
     p.line_segment(
         [r.right_top(), r.left_bottom()],
-        egui::Stroke::new(1.5_f32, RED),
+        egui::Stroke::new(1.5_f32, DANGER),
     );
     response
 }

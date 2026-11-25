@@ -190,7 +190,7 @@ impl Services {
                             ui,
                             "↻",
                             "Refresh services",
-                            CYAN,
+                            ACCENT,
                             self.pending.is_none() && self.confirmation.is_none(),
                         )
                         .clicked()
@@ -261,12 +261,12 @@ impl Services {
                 });
                 ui.add_space(12.0);
                 if let Some(error) = &self.error {
-                    ui.label(RichText::new(error).color(RED));
+                    ui.label(RichText::new(error).color(DANGER));
                 }
                 if let Some((notice, error)) = &self.notice {
                     let mut dismiss = false;
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(notice).color(if *error { RED } else { CYAN }));
+                        ui.label(RichText::new(notice).color(if *error { DANGER } else { ACCENT }));
                         dismiss = icon_button(ui, "×", "Dismiss notice", MUTED, true).clicked();
                     });
                     if dismiss {
@@ -432,7 +432,7 @@ impl Services {
                 if icon_button(ui, "×", "Close service inspector", MUTED, true).clicked() {
                     self.selected = None;
                 }
-                if icon_button(ui, "⧉", "Copy service identifier", CYAN, true).clicked() {
+                if icon_button(ui, "⧉", "Copy service identifier", ACCENT, true).clicked() {
                     ui.ctx().copy_text(service.id.clone());
                 }
             });
@@ -491,7 +491,7 @@ impl Services {
                     self.confirmation = None;
                 }
                 if ui
-                    .button(RichText::new(request.action.label()).color(AMBER))
+                    .button(RichText::new(request.action.label()).color(WARNING))
                     .clicked()
                 {
                     self.confirmation = None;
@@ -559,9 +559,9 @@ impl Services {
 
 fn state_color(service: &Service) -> egui::Color32 {
     match service.runtime() {
-        services::RuntimeState::Running => CYAN,
-        services::RuntimeState::Failed => RED,
-        services::RuntimeState::Paused => AMBER,
+        services::RuntimeState::Running => ACCENT,
+        services::RuntimeState::Failed => DANGER,
+        services::RuntimeState::Paused => WARNING,
         _ => MUTED,
     }
 }
@@ -685,59 +685,12 @@ fn action_button(
         icon,
         &label,
         if matches!(action, Action::Stop | Action::Disable) {
-            AMBER
+            WARNING
         } else {
-            CYAN
+            ACCENT
         },
         enabled && allowed,
     )
-}
-
-pub fn rail_icon(ui: &mut egui::Ui, selected: bool) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::click());
-    let active = selected || response.hovered() || response.has_focus();
-    let color = if active { CYAN } else { MUTED };
-    let painter = ui.painter();
-    painter.rect_filled(
-        rect,
-        5.0,
-        if active {
-            egui::Color32::from_rgb(17, 39, 48)
-        } else {
-            PANEL
-        },
-    );
-    for y in [-8.0, 0.0, 8.0] {
-        let center = rect.center() + egui::vec2(0.0, y);
-        painter.line_segment(
-            [
-                center - egui::vec2(11.0, 0.0),
-                center + egui::vec2(11.0, 0.0),
-            ],
-            egui::Stroke::new(1.4_f32, color),
-        );
-        painter.circle_filled(
-            center + egui::vec2(if y == 0.0 { 5.0 } else { -5.0 }, 0.0),
-            3.0,
-            PANEL,
-        );
-        painter.circle_stroke(
-            center + egui::vec2(if y == 0.0 { 5.0 } else { -5.0 }, 0.0),
-            3.0,
-            egui::Stroke::new(1.4_f32, color),
-        );
-    }
-    if selected {
-        painter.line_segment(
-            [
-                rect.left_top() + egui::vec2(0.0, 9.0),
-                rect.left_bottom() - egui::vec2(0.0, 9.0),
-            ],
-            egui::Stroke::new(2.0_f32, CYAN),
-        );
-    }
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Services"));
-    response.on_hover_text("Services")
 }
 
 #[cfg(test)]

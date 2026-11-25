@@ -391,7 +391,7 @@ impl Cleanup {
                 if ui
                     .add_enabled(
                         self.can_scan(),
-                        egui::Button::new(RichText::new(label).color(CYAN))
+                        egui::Button::new(RichText::new(label).color(ACCENT))
                             .min_size(egui::vec2(140.0, 36.0)),
                     )
                     .on_disabled_hover_text("Select a disk to scan.")
@@ -427,7 +427,7 @@ impl Cleanup {
                                     .fill(if selected { SURFACE } else { PANEL })
                                     .stroke(Stroke::new(
                                         if selected { 1.5 } else { 1.0_f32 },
-                                        if selected { CYAN } else { LINE },
+                                        if selected { ACCENT } else { LINE },
                                     )),
                             );
                             response.widget_info(|| {
@@ -446,7 +446,7 @@ impl Cleanup {
                                     r.min + egui::vec2(18.0, 16.0),
                                     egui::vec2(32.0, 32.0),
                                 ),
-                                if selected { CYAN } else { MUTED },
+                                if selected { ACCENT } else { MUTED },
                             );
                             p.text(
                                 r.min + egui::vec2(size - 16.0, 22.0),
@@ -460,7 +460,7 @@ impl Cleanup {
                                 egui::Align2::LEFT_TOP,
                                 display(&disk.path),
                                 egui::FontId::proportional(26.0),
-                                if selected { CYAN } else { TEXT },
+                                if selected { ACCENT } else { TEXT },
                             );
                             p.text(
                                 r.min + egui::vec2(18.0, 93.0),
@@ -489,7 +489,7 @@ impl Cleanup {
                                     egui::vec2(bar.width() * used.clamp(0.0, 1.0), 4.0),
                                 ),
                                 2.0,
-                                if used > 0.9 { AMBER } else { CYAN },
+                                if used > 0.9 { WARNING } else { ACCENT },
                             );
                             p.text(
                                 egui::pos2(r.left() + 18.0, r.bottom() - 42.0),
@@ -538,19 +538,19 @@ impl Cleanup {
             && !self.busy;
         let cancelling = self.cancel.load(Ordering::Relaxed) && self.busy;
         let (state, color) = if self.deleting {
-            ("Deleting", AMBER)
+            ("Deleting", WARNING)
         } else if cancelling {
-            ("Stopping", AMBER)
+            ("Stopping", WARNING)
         } else if self.busy {
-            ("Syncing", CYAN)
+            ("Syncing", ACCENT)
         } else if failed {
-            ("Scan failed", RED)
+            ("Scan failed", DANGER)
         } else if self.needs_rescan {
-            ("Rescan needed", AMBER)
+            ("Rescan needed", WARNING)
         } else if cancelled {
-            ("Partial results", AMBER)
+            ("Partial results", WARNING)
         } else {
-            ("Complete", CYAN)
+            ("Complete", ACCENT)
         };
         ui.horizontal(|ui| {
             ui.label(RichText::new("Cleanup results").size(25.0))
@@ -604,7 +604,7 @@ impl Cleanup {
         let width = ui.available_width();
         let metric_width = (width - 20.0) / 3.0;
         ui.horizontal(|ui| {
-            summary_metric(ui, metric_width, "Detected size", &bytes(total), CYAN);
+            summary_metric(ui, metric_width, "Detected size", &bytes(total), ACCENT);
             summary_metric(ui, metric_width, "Folders found", &number(matches), TEXT);
             summary_metric(
                 ui,
@@ -624,7 +624,7 @@ impl Cleanup {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(
-                        egui::Button::new(RichText::new(details_label).size(11.0).color(CYAN))
+                        egui::Button::new(RichText::new(details_label).size(11.0).color(ACCENT))
                             .min_size(egui::vec2(100.0, 24.0)),
                     )
                     .on_hover_text("View skipped paths and scan warnings")
@@ -856,7 +856,7 @@ impl Cleanup {
                     || self.minimum > 0)
                     && ui
                         .add(
-                            egui::Button::new(RichText::new("Reset").size(12.0).color(CYAN))
+                            egui::Button::new(RichText::new("Reset").size(12.0).color(ACCENT))
                                 .frame(false),
                         )
                         .clicked()
@@ -1069,15 +1069,11 @@ impl Cleanup {
                         let is_selected = self.selected.contains(&e.path);
                         let mut changed_selection = false;
                         let frame = egui::Frame::new()
-                            .fill(if is_selected {
-                                egui::Color32::from_rgb(15, 39, 47)
-                            } else {
-                                PANEL
-                            })
+                            .fill(if is_selected { SELECTED_FILL } else { PANEL })
                             .stroke(Stroke::new(
                                 1.0_f32,
                                 if is_selected {
-                                    CYAN.gamma_multiply(0.55)
+                                    ACCENT.gamma_multiply(0.55)
                                 } else {
                                     LINE
                                 },
@@ -1105,7 +1101,7 @@ impl Cleanup {
                                     changed_selection = true;
                                 }
 
-                                folder_glyph(ui, if e.kind == "Build" { AMBER } else { CYAN });
+                                folder_glyph(ui, if e.kind == "Build" { WARNING } else { ACCENT });
                                 let columns = result_columns(card_width, wide);
                                 fixed_cell(
                                     ui,
@@ -1149,7 +1145,7 @@ impl Cleanup {
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         egui::Frame::new()
-                                            .fill(egui::Color32::from_rgb(19, 31, 39))
+                                            .fill(SURFACE)
                                             .corner_radius(4)
                                             .inner_margin(egui::Margin::symmetric(7, 4))
                                             .show(ui, |ui| {
@@ -1189,7 +1185,7 @@ impl Cleanup {
                                             })
                                             .size(14.0)
                                             .strong()
-                                            .color(if e.issue.is_some() { AMBER } else { TEXT }),
+                                            .color(if e.issue.is_some() { WARNING } else { TEXT }),
                                         );
                                         ui.label(
                                             RichText::new(if e.issue.is_some() {
@@ -1255,7 +1251,7 @@ impl Cleanup {
                         if self.selected.is_empty() {
                             MUTED
                         } else {
-                            CYAN
+                            ACCENT
                         },
                     ));
                     ui.label(
@@ -1285,13 +1281,13 @@ impl Cleanup {
                 if ui
                     .add_enabled(
                         can_select && !self.selected.is_empty(),
-                        egui::Button::new(
-                            RichText::new("Review deletion").color(if self.selected.is_empty() {
+                        egui::Button::new(RichText::new("Review deletion").color(
+                            if self.selected.is_empty() {
                                 MUTED
                             } else {
-                                RED
-                            }),
-                        )
+                                DANGER
+                            },
+                        ))
                         .min_size(egui::vec2(145.0, 36.0)),
                     )
                     .clicked()
@@ -1301,7 +1297,7 @@ impl Cleanup {
             });
         });
         if hidden > 0 {
-            ui.label(RichText::new(format!("{hidden} selected folders are hidden by your filters; they are included in the review.")).size(11.0).color(AMBER));
+            ui.label(RichText::new(format!("{hidden} selected folders are hidden by your filters; they are included in the review.")).size(11.0).color(WARNING));
         }
     }
     fn scan_details(&mut self, ctx: &egui::Context) {
@@ -1314,8 +1310,8 @@ impl Cleanup {
             ui.label(format!("{} paths skipped", number(scan.skipped)));
             ui.label(RichText::new("Source control metadata, system folders, links, other mounted disks, and unreadable paths are skipped.").color(MUTED));
             egui::ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
-                for warning in &scan.warnings { ui.colored_label(AMBER, warning); }
-                for failure in &self.failures { ui.colored_label(RED, failure); }
+                for warning in &scan.warnings { ui.colored_label(WARNING, warning); }
+                for failure in &self.failures { ui.colored_label(DANGER, failure); }
                 if scan.warnings.is_empty() && self.failures.is_empty() { ui.label("No read or deletion errors reported."); }
             });
         });
@@ -1354,7 +1350,7 @@ impl Cleanup {
                 field(ui, "Newest modification", &date(e.modified));
                 field(ui, "Folder created", &date(e.created));
                 if let Some(issue) = &e.issue {
-                    ui.colored_label(AMBER, issue);
+                    ui.colored_label(WARNING, issue);
                 }
                 if ui.button("Copy path").clicked() {
                     ui.ctx().copy_text(display(&e.path));
@@ -1377,7 +1373,7 @@ impl Cleanup {
         let modal = egui::Modal::new(egui::Id::new("cleanup_confirm")).show(ctx, |ui| {
             ui.set_width(520.0);
             ui.label(RichText::new(format!("Delete {} folders?", entries.len())).size(25.0));
-            ui.label(RichText::new(bytes(entries.iter().map(|e| e.bytes).sum())).size(30.0).color(CYAN));
+            ui.label(RichText::new(bytes(entries.iter().map(|e| e.bytes).sum())).size(30.0).color(ACCENT));
             ui.label("Deletion is permanent and bypasses the Recycle Bin / Trash."); ui.add_space(8.0);
             egui::ScrollArea::vertical().max_height((ctx.content_rect().height() * 0.35).clamp(120.0, 260.0)).show(ui, |ui| {
                 for e in &entries {
@@ -1389,12 +1385,12 @@ impl Cleanup {
                 }
             });
             ui.add_space(8.0);
-            ui.label(RichText::new("Close builds and apps using these folders. Dependencies may need downloading again. Changed or locked contents may prevent complete deletion.").size(12.0).color(AMBER));
+            ui.label(RichText::new("Close builds and apps using these folders. Dependencies may need downloading again. Changed or locked contents may prevent complete deletion.").size(12.0).color(WARNING));
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui.button("Cancel").clicked() { self.confirmation = false; }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(RichText::new("Delete permanently").color(RED)).clicked() { delete = true; }
+                    if ui.button(RichText::new("Delete permanently").color(DANGER)).clicked() { delete = true; }
                 });
             });
         });

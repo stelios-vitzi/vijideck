@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VijiDeck Gauges</title>
+<!--
+  Sleek UI dials
+  Mode: dark-first + light   Neutral: cool (H 230)   Accent: cyan (H 205)
+  Density: balanced/compact  Depth: layered          Motion: subtle
+  Light effects used: ambient canvas light + dark top-edge highlight (2 max)
+-->
+<style>
+:root {
+  --H: 230;
+  --AH: 205;
+
+  --canvas:         oklch(96% 0.008 var(--H));
+  --surface-1:      oklch(99.2% 0.004 var(--H));
+  --surface-2:      oklch(99.8% 0.002 var(--H));
+  --surface-sunken: oklch(92.8% 0.010 var(--H));
+  --fill-hover:     oklch(50% 0.02 var(--H) / 0.06);
+  --fill-press:     oklch(50% 0.02 var(--H) / 0.10);
+  --divider:        oklch(50% 0.01 var(--H) / 0.09);
+
+  --text-1: oklch(22% 0.012 var(--H));
+  --text-2: oklch(42% 0.012 var(--H));
+  --text-3: oklch(52% 0.010 var(--H));
+
+  --accent:      oklch(56% 0.12 var(--AH));
+  --accent-text: oklch(48% 0.11 var(--AH));
+  --on-accent:   oklch(99% 0.005 var(--AH));
+  --accent-tint: oklch(56% 0.12 var(--AH) / 0.10);
+  --track:       oklch(50% 0.02 var(--H) / 0.10);
+  --danger:      oklch(55% 0.17 25);
+  --warning:     oklch(58% 0.12 70);
+
+  --shadow-color: 28% 0.03 var(--H);
+  --shadow-1: 0 1px 2px oklch(var(--shadow-color) / 0.08), 0 4px 14px oklch(var(--shadow-color) / 0.07);
+  --shadow-2: 0 2px 6px oklch(var(--shadow-color) / 0.08), 0 12px 32px oklch(var(--shadow-color) / 0.12);
+  --shadow-3: 0 6px 12px oklch(var(--shadow-color) / 0.08), 0 28px 72px oklch(var(--shadow-color) / 0.20);
+  --ambient: oklch(99% 0.006 var(--H) / 0.9);
+
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  --r-control: 8px;
+  --r-card: 14px;
+  --r-sheet: 22px;
+  --gutter: 32px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas:         oklch(20.5% 0.012 var(--H));
+  --surface-1:      oklch(25.5% 0.013 var(--H));
+  --surface-2:      oklch(30.5% 0.014 var(--H));
+  --surface-sunken: oklch(17.5% 0.011 var(--H));
+  --fill-hover:     oklch(90% 0.01 var(--H) / 0.06);
+  --fill-press:     oklch(90% 0.01 var(--H) / 0.10);
+  --divider:        oklch(100% 0 0 / 0.06);
+
+  --text-1: oklch(95% 0.006 var(--H));
+  --text-2: oklch(78% 0.010 var(--H));
+  --text-3: oklch(66% 0.010 var(--H));
+
+  --accent:      oklch(78% 0.11 var(--AH));
+  --accent-text: oklch(82% 0.10 var(--AH));
+  --on-accent:   oklch(20% 0.03 var(--AH));
+  --accent-tint: oklch(78% 0.11 var(--AH) / 0.12);
+  --track:       oklch(90% 0.01 var(--H) / 0.08);
+  --danger:      oklch(72% 0.14 22);
+  --warning:     oklch(80% 0.11 75);
+
+  --shadow-color: 8% 0.01 var(--H);
+  --shadow-1: 0 1px 2px oklch(var(--shadow-color) / 0.40), 0 6px 16px oklch(var(--shadow-color) / 0.30), inset 0 1px 0 oklch(100% 0 0 / 0.06);
+  --shadow-2: 0 2px 6px oklch(var(--shadow-color) / 0.45), 0 14px 36px oklch(var(--shadow-color) / 0.40), inset 0 1px 0 oklch(100% 0 0 / 0.07);
+  --shadow-3: 0 6px 14px oklch(var(--shadow-color) / 0.50), 0 32px 80px oklch(var(--shadow-color) / 0.55), inset 0 1px 0 oklch(100% 0 0 / 0.08);
+  --ambient: oklch(26% 0.016 var(--H) / 0.9);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 400 14px/1.5 var(--font);
+  color: var(--text-1);
+  background:
+    radial-gradient(1100px 520px at 60% -12%, var(--ambient), transparent 70%),
+    var(--canvas);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+:focus-visible { outline: 2px solid oklch(from var(--accent) l c h / 0.7); outline-offset: 2px; border-radius: var(--r-control); }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: 13px; }
+.t2 { color: var(--text-2); }
+.t3 { color: var(--text-3); }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---------- Shell ---------- */
+.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100dvh; }
+
+.side {
+  position: sticky; top: 0; height: 100dvh;
+  display: flex; flex-direction: column; gap: 32px;
+  padding: 24px 16px;
+}
+.brand { display: flex; align-items: center; gap: 12px; padding: 0 12px; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.mark {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: linear-gradient(145deg, var(--accent), oklch(from var(--accent) calc(l - 0.12) c calc(h + 25)));
+  box-shadow: var(--shadow-1);
+  display: grid; place-items: center; color: var(--on-accent);
+}
+.mark svg { width: 16px; height: 16px; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav button {
+  display: flex; align-items: center; gap: 12px;
+  height: 38px; padding: 0 12px; border-radius: var(--r-control);
+  color: var(--text-2); font-weight: 500; text-align: left;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.nav button:hover { background: var(--fill-hover); color: var(--text-1); }
+.nav button[aria-current="page"] { background: var(--accent-tint); color: var(--accent-text); }
+.side .foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
+
+.main { min-width: 0; padding: 0 var(--gutter) 48px; }
+.top {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 16px;
+  height: 76px; margin: 0 calc(var(--gutter) * -1); padding: 0 var(--gutter);
+  background: oklch(from var(--canvas) l c h / 0.72);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+@supports not (backdrop-filter: blur(1px)) { .top { background: var(--canvas); } }
+.top h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.top .spacer { flex: 1; }
+
+.search {
+  display: flex; align-items: center; gap: 8px;
+  width: 280px; height: 38px; padding: 0 12px;
+  background: var(--surface-sunken); border-radius: var(--r-control);
+  color: var(--text-3);
+  transition: background 150ms var(--ease);
+}
+.search:focus-within { background: var(--surface-1); box-shadow: var(--shadow-1); }
+.search input { all: unset; flex: 1; min-width: 0; color: var(--text-1); font-size: 14px; }
+.search input::placeholder { color: var(--text-3); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 38px; padding: 0 16px; border-radius: var(--r-control);
+  font-weight: 500; white-space: nowrap;
+  transition: background 150ms var(--ease), transform 100ms var(--ease), box-shadow 150ms var(--ease);
+}
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-1); }
+.btn.primary:hover { box-shadow: var(--shadow-2); }
+.btn.secondary { background: var(--fill-hover); }
+.btn.secondary:hover { background: var(--fill-press); }
+.btn.danger { background: var(--danger); color: oklch(99% 0 0); }
+.icon-btn {
+  width: 36px; height: 36px; display: grid; place-items: center;
+  border-radius: var(--r-control); color: var(--text-2);
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.icon-btn:hover { background: var(--fill-hover); color: var(--text-1); }
+.icon-btn.danger:hover { color: var(--danger); }
+
+/* ---------- Content ---------- */
+.view { display: none; animation: enter 260ms var(--ease); }
+.view.on { display: block; }
+@keyframes enter { from { opacity: 0; transform: translateY(6px); } }
+
+.card {
+  background: var(--surface-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-1);
+  padding: 24px;
+}
+.card h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; min-height: 36px; }
+
+.grid { display: grid; gap: 16px; }
+.metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 8px; }
+.split { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); margin-top: 16px; }
+
+.metric { display: flex; flex-direction: column; gap: 4px; }
+.metric .label { color: var(--text-2); font-weight: 500; }
+.metric .value { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; }
+.metric .value small { font-size: 15px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 2px; }
+.bar { height: 6px; border-radius: 99px; background: var(--track); margin-top: 16px; overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.bar.warn > i { background: var(--warning); }
+
+/* gauges: 270° arc, value centered, one detail line */
+.gauge-card { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.gauge-card .label { align-self: stretch; text-align: left; color: var(--text-2); font-weight: 500; }
+.gauge { position: relative; width: 100%; max-width: 168px; aspect-ratio: 1; margin-top: 4px; }
+.gauge svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.gauge .track { fill: none; stroke: var(--track); stroke-width: 9; stroke-linecap: round; }
+.gauge .tick { stroke: var(--text-3); stroke-width: 1.4; stroke-linecap: round; opacity: 0.35; }
+.gauge .val {
+  fill: none; stroke: var(--gauge-color, var(--accent)); stroke-width: 9; stroke-linecap: round;
+  transition: stroke-dasharray 900ms var(--ease);
+}
+.gauge .halo {
+  fill: none; stroke: var(--gauge-color, var(--accent)); stroke-width: 9; stroke-linecap: round;
+  opacity: 0; filter: blur(8px);
+  transition: stroke-dasharray 900ms var(--ease);
+}
+:root[data-theme="dark"] .gauge .halo { opacity: 0.35; }
+.gauge .readout {
+  position: absolute; inset: 0; display: grid; place-content: center; padding-top: 4px;
+}
+.gauge .readout b { font-size: 36px; font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
+.gauge .readout b small { font-size: 16px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 1px; }
+.gauge-card.warn { --gauge-color: var(--warning); }
+.gauge-card .detail { margin-top: -12px; }
+.spark { width: 100%; height: 40px; margin-top: 12px; display: block; }
+.spark path.l { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.spark path.a { fill: var(--accent-tint); }
+
+/* rows (lists & tables) */
+.rows { list-style: none; margin: 0 -12px; padding: 0; }
+.row {
+  position: relative;
+  display: grid; align-items: center; gap: 16px;
+  min-height: 48px; padding: 8px 12px; border-radius: var(--r-control);
+  transition: background 150ms var(--ease);
+}
+.row:hover { background: var(--fill-hover); }
+.row + .row::before {
+  content: ""; position: absolute; top: 0; left: 12px; right: 12px;
+  height: 1px; background: var(--divider);
+}
+.row:hover::before, .row:hover + .row::before { opacity: 0; }
+.row .actions { display: flex; gap: 4px; justify-content: flex-end; opacity: 0; transition: opacity 150ms var(--ease); }
+.row:hover .actions, .row:focus-within .actions { opacity: 1; }
+@media (hover: none) { .row .actions { opacity: 1; } }
+
+.r-ports { grid-template-columns: 72px minmax(0, 1fr) auto; }
+.r-ports .port { font-weight: 600; }
+
+.table-head {
+  display: grid; gap: 16px; padding: 0 0 8px;
+  color: var(--text-3); font-size: 13px; font-weight: 500;
+}
+.r-ptable, .table-head.p { grid-template-columns: 84px 64px minmax(0, 1.4fr) 80px minmax(0, 1fr) 84px; }
+.cell-proc { display: flex; flex-direction: column; min-width: 0; }
+.cell-proc span, .trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.right { text-align: right; }
+
+.reclaim .value { font-size: 40px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.1; }
+.reclaim p { margin: 4px 0 24px; color: var(--text-2); }
+.stack { display: flex; height: 8px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--track); }
+.stack i { display: block; height: 100%; }
+.legend { list-style: none; padding: 0; margin: 16px 0 24px; display: grid; gap: 8px; }
+.legend li { display: flex; justify-content: space-between; color: var(--text-2); }
+.legend li b { font-weight: 500; color: var(--text-1); }
+
+/* cleanup */
+.r-clean { grid-template-columns: 24px minmax(0, 1fr) 96px; cursor: pointer; }
+.check {
+  width: 20px; height: 20px; border-radius: 6px;
+  background: var(--surface-sunken);
+  display: grid; place-items: center; color: transparent;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.check svg { width: 14px; height: 14px; stroke-width: 2.4; }
+.row[aria-checked="true"] .check { background: var(--accent); color: var(--on-accent); }
+.row[aria-checked="true"] { background: var(--accent-tint); }
+.row[aria-checked="true"]::before, .row[aria-checked="true"] + .row::before { opacity: 0; }
+
+.sticky-action {
+  position: sticky; bottom: 16px; margin-top: 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 12px 12px 24px; border-radius: var(--r-card);
+  background: oklch(from var(--surface-2) l c h / 0.78);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--shadow-2);
+}
+
+/* docker */
+.group + .group { margin-top: 24px; }
+.group h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--text-2); display: flex; justify-content: space-between; }
+.r-dock { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px 84px; }
+.state-run { color: var(--text-1); }
+.state-stop { color: var(--text-3); }
+
+/* segmented */
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--surface-sunken); }
+.seg button { height: 30px; padding: 0 12px; border-radius: 7px; color: var(--text-2); font-weight: 500; font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-1); box-shadow: var(--shadow-1); }
+
+.empty { display: grid; place-items: center; text-align: center; min-height: 360px; gap: 16px; }
+.empty p { margin: 0; color: var(--text-2); max-width: 36ch; }
+
+/* dialog */
+.scrim {
+  position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 16px;
+  background: oklch(15% 0.02 var(--H) / 0.35);
+  backdrop-filter: blur(4px);
+}
+.scrim.on { display: grid; animation: fade 200ms var(--ease); }
+@keyframes fade { from { opacity: 0; } }
+.dialog {
+  width: min(420px, 100%); padding: 24px; border-radius: var(--r-sheet);
+  background: var(--surface-2); box-shadow: var(--shadow-3);
+  animation: pop 260ms var(--ease);
+}
+@keyframes pop { from { opacity: 0; transform: scale(0.98) translateY(6px); } }
+.dialog h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.dialog p { margin: 0 0 24px; color: var(--text-2); }
+.dialog .btns { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .split { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  :root { --gutter: 16px; }
+  .shell { grid-template-columns: 1fr; }
+  .side {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 10;
+    height: auto; padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+    flex-direction: row; gap: 0;
+    background: oklch(from var(--surface-2) l c h / 0.8);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow: var(--shadow-2);
+  }
+  .brand, .side .foot { display: none; }
+  .nav { flex-direction: row; flex: 1; gap: 0; }
+  .nav button { flex: 1 1 0; min-width: 0; justify-content: center; height: 48px; padding: 0; }
+  .nav button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .main { padding-bottom: 104px; }
+  .top { height: 64px; }
+  .top h1 { font-size: 20px; }
+  .search { display: none; }
+  .search-btn { display: grid !important; }
+  .card { padding: 16px; }
+  .gauge { max-width: 148px; }
+  .gauge .readout b { font-size: 32px; }
+  .table-head { display: none; }
+  .r-ptable { grid-template-columns: minmax(0, 1fr) auto; }
+  .r-ptable .hide-m { display: none; }
+  .r-dock { grid-template-columns: minmax(0, 1fr) auto; }
+  .r-dock .hide-m { display: none; }
+  .row .actions { opacity: 1; }
+  .top .btn .lbl { display: none; }
+  .top .btn { width: 38px; padding: 0; }
+  .sticky-action { bottom: 88px; padding-left: 16px; }
+}
+@media (max-width: 420px) {
+  .metrics { gap: 12px; }
+  .gauge .readout b { font-size: 26px; }
+  .gauge .readout b small { font-size: 13px; }
+  .gauge-card .detail { font-size: 13px; margin-top: -8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-ports" viewBox="0 0 24 24"><path d="M7 4v4M12 4v4M17 4v4"/><rect x="4" y="8" width="16" height="9" rx="2.5"/><path d="M12 17v3"/></symbol>
+  <symbol id="i-proc" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+  <symbol id="i-svc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></symbol>
+  <symbol id="i-docker" viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></symbol>
+  <symbol id="i-clean" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7.5" ry="2.5"/><path d="M4.5 6v12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5V6M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5"/></symbol>
+  <symbol id="i-env" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></symbol>
+  <symbol id="i-logs" viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h9M5 18h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><path d="m5 8 4 4-4 4M12 17h7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 12h6M9 16h4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 24 24"><path d="M5 6l7 13 7-13" stroke-width="2.6"/></symbol>
+</svg>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-mark"/></svg></span>VijiDeck</div>
+    <nav class="nav" aria-label="Tools">
+      <button data-view="overview" aria-current="page"><svg class="i"><use href="#i-overview"/></svg><span>Overview</span></button>
+      <button data-view="ports"><svg class="i"><use href="#i-ports"/></svg><span>Ports</span></button>
+      <button data-view="processes"><svg class="i"><use href="#i-proc"/></svg><span>Processes</span></button>
+      <button data-view="services"><svg class="i"><use href="#i-svc"/></svg><span>Services</span></button>
+      <button data-view="docker"><svg class="i"><use href="#i-docker"/></svg><span>Docker</span></button>
+      <button data-view="cleanup"><svg class="i"><use href="#i-clean"/></svg><span>Disk cleanup</span></button>
+      <button data-view="environment"><svg class="i"><use href="#i-env"/></svg><span>Environment</span></button>
+      <button data-view="logs"><svg class="i"><use href="#i-logs"/></svg><span>Logs</span></button>
+    </nav>
+    <div class="foot">
+      <div class="nav"><button id="theme"><svg class="i"><use href="#i-moon"/></svg><span>Light theme</span></button></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <h1 id="title">Overview</h1>
+      <div class="spacer"></div>
+      <label class="search"><svg class="i"><use href="#i-search"/></svg><input placeholder="Search ports, processes, containers" aria-label="Search"></label>
+      <button class="icon-btn search-btn" style="display:none" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+      <button class="icon-btn" aria-label="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button>
+    </header>
+
+    <!-- OVERVIEW -->
+    <section class="view on" id="v-overview">
+      <div class="grid metrics">
+        <div class="card gauge-card" data-gauge="cpu" data-value="23" data-live>
+          <span class="label">CPU</span>
+          <div class="gauge"></div>
+          <span class="detail t2 num">12 cores · 4.2 GHz</span>
+        </div>
+        <div class="card gauge-card" data-gauge="mem" data-value="57">
+          <span class="label">Memory</span>
+          <div class="gauge"></div>
+          <span class="detail t2 num">18.4 of 32 GB</span>
+        </div>
+        <div class="card gauge-card" data-gauge="disk" data-value="84">
+          <span class="label">Disk C:</span>
+          <div class="gauge"></div>
+          <span class="detail t2 num">842 GB of 1 TB</span>
+        </div>
+        <div class="card gauge-card" data-gauge="gpu" data-value="6" data-live>
+          <span class="label">GPU</span>
+          <div class="gauge"></div>
+          <span class="detail t2 num">RTX 4070 · 0.9 of 12 GB</span>
+        </div>
+      </div>
+
+      <div class="grid split">
+        <div class="card">
+          <div class="card-head"><h2>Listening ports</h2><button class="btn secondary" data-go="ports">View all</button></div>
+          <ul class="rows">
+            <li class="row r-ports"><span class="port num">3000</span><span class="trunc">node <span class="t3">· vite dev server</span></span><span class="t2 num">PID 18244</span></li>
+            <li class="row r-ports"><span class="port num">5432</span><span class="trunc">postgres <span class="t3">· docker-proxy</span></span><span class="t2 num">PID 4410</span></li>
+            <li class="row r-ports"><span class="port num">6379</span><span class="trunc">redis-server</span><span class="t2 num">PID 4532</span></li>
+            <li class="row r-ports"><span class="port num">8080</span><span class="trunc">java <span class="t3">· gradle daemon</span></span><span class="t2 num">PID 20918</span></li>
+            <li class="row r-ports"><span class="port num">11434</span><span class="trunc">ollama</span><span class="t2 num">PID 7720</span></li>
+          </ul>
+        </div>
+        <div class="card reclaim">
+          <h2>Reclaimable space</h2>
+          <div class="value num" style="margin-top:16px">24.7 GB</div>
+          <p>Found in build caches and dependency folders.</p>
+          <div class="stack" aria-hidden="true">
+            <i style="width:46%;background:var(--accent)"></i>
+            <i style="width:28%;background:oklch(from var(--accent) l c calc(h + 40))"></i>
+            <i style="width:16%;background:oklch(from var(--accent) l c calc(h + 90))"></i>
+          </div>
+          <ul class="legend">
+            <li>Rust target folders <b class="num">11.3 GB</b></li>
+            <li>node_modules <b class="num">6.9 GB</b></li>
+            <li>Docker build cache <b class="num">4.0 GB</b></li>
+          </ul>
+          <button class="btn primary" data-go="cleanup">Review cleanup</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PORTS -->
+    <section class="view" id="v-ports">
+      <div class="card">
+        <div class="card-head">
+          <div class="seg" role="group" aria-label="Protocol">
+            <button aria-pressed="true">All</button><button aria-pressed="false">TCP</button><button aria-pressed="false">UDP</button>
+          </div>
+          <span class="t2 num">9 listening</span>
+        </div>
+        <div class="table-head p"><span>Port</span><span>Proto</span><span>Process</span><span class="right">PID</span><span>Address</span><span></span></div>
+        <ul class="rows" id="port-rows"></ul>
+      </div>
+    </section>
+
+    <!-- DOCKER -->
+    <section class="view" id="v-docker">
+      <div class="card">
+        <div class="group">
+          <h3><span>shop-api</span><span class="num">3 containers</span></h3>
+          <ul class="rows">
+            <li class="row r-dock"><span class="trunc"><b style="font-weight:500">api</b> <span class="t3 mono">shop-api:dev</span></span><span class="t2 mono hide-m">0.0.0.0:8080→80</span><span class="state-run hide-m">Up 2 hours</span><span class="actions"><button class="icon-btn" aria-label="Logs"><svg class="i"><use href="#i-file"/></svg></button><button class="icon-btn" aria-label="Terminal"><svg class="i"><use href="#i-term"/></svg></button><button class="icon-btn" aria-label="Stop"><svg class="i"><use href="#i-stop"/></svg></button></span></li>
+            <li class="row r-dock"><span class="trunc"><b style="font-weight:500">db</b> <span class="t3 mono">postgres:16</span></span><span class="t2 mono hide-m">0.0.0.0:5432→5432</span><span class="state-run hide-m">Up 2 hours</span><span class="actions"><button class="icon-btn" aria-label="Logs"><svg class="i"><use href="#i-file"/></svg></button><button class="icon-btn" aria-label="Terminal"><svg class="i"><use href="#i-term"/></svg></button><button class="icon-btn" aria-label="Stop"><svg class="i"><use href="#i-stop"/></svg></button></span></li>
+            <li class="row r-dock"><span class="trunc"><b style="font-weight:500">cache</b> <span class="t3 mono">redis:7-alpine</span></span><span class="t2 mono hide-m">0.0.0.0:6379→6379</span><span class="state-run hide-m">Up 2 hours</span><span class="actions"><button class="icon-btn" aria-label="Logs"><svg class="i"><use href="#i-file"/></svg></button><button class="icon-btn" aria-label="Terminal"><svg class="i"><use href="#i-term"/></svg></button><button class="icon-btn" aria-label="Stop"><svg class="i"><use href="#i-stop"/></svg></button></span></li>
+          </ul>
+        </div>
+        <div class="group">
+          <h3><span>Standalone</span><span class="num">2 containers</span></h3>
+          <ul class="rows">
+            <li class="row r-dock"><span class="trunc"><b style="font-weight:500">minio</b> <span class="t3 mono">minio/minio:latest</span></span><span class="t2 mono hide-m">—</span><span class="state-stop hide-m">Exited 3 days ago</span><span class="actions"><button class="icon-btn" aria-label="Logs"><svg class="i"><use href="#i-file"/></svg></button><button class="icon-btn" aria-label="Start"><svg class="i"><use href="#i-play"/></svg></button></span></li>
+            <li class="row r-dock"><span class="trunc"><b style="font-weight:500">mailpit</b> <span class="t3 mono">axllent/mailpit</span></span><span class="t2 mono hide-m">0.0.0.0:8025→8025</span><span class="state-run hide-m">Up 5 days</span><span class="actions"><button class="icon-btn" aria-label="Logs"><svg class="i"><use href="#i-file"/></svg></button><button class="icon-btn" aria-label="Terminal"><svg class="i"><use href="#i-term"/></svg></button><button class="icon-btn" aria-label="Stop"><svg class="i"><use href="#i-stop"/></svg></button></span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLEANUP -->
+    <section class="view" id="v-cleanup">
+      <div class="card">
+        <div class="card-head"><h2>C:\Projects</h2><button class="btn secondary">Change folder</button></div>
+        <ul class="rows" id="clean-rows"></ul>
+      </div>
+      <div class="sticky-action">
+        <span><b class="num" id="sel-size" style="font-weight:600">0 GB</b> <span class="t2" id="sel-count">selected</span></span>
+        <button class="btn primary" id="clean-btn">Move to recycle bin</button>
+      </div>
+    </section>
+
+    <!-- PLACEHOLDER -->
+    <section class="view" id="v-empty">
+      <div class="card empty">
+        <div>
+          <p id="empty-text">This screen keeps the same shell, spacing and row patterns.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <h2 id="dlg-title">Stop node on port 3000?</h2>
+    <p id="dlg-text">Process 18244 will be terminated. Unsaved work in that process will be lost.</p>
+    <div class="btns">
+      <button class="btn secondary" id="dlg-cancel">Cancel</button>
+      <button class="btn danger" id="dlg-ok">Stop process</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ports = [
+  [3000,'TCP','node','vite dev server',18244,'127.0.0.1'],
+  [5173,'TCP','node','storybook',18302,'127.0.0.1'],
+  [5432,'TCP','com.docker.backend','postgres',4410,'0.0.0.0'],
+  [6379,'TCP','com.docker.backend','redis',4532,'0.0.0.0'],
+  [8080,'TCP','java','org.gradle.launcher.daemon.bootstrap.GradleDaemon',20918,'::'],
+  [8025,'TCP','com.docker.backend','mailpit',4610,'0.0.0.0'],
+  [11434,'TCP','ollama','',7720,'127.0.0.1'],
+  [5353,'UDP','svchost.exe','Dnscache',2216,'0.0.0.0'],
+  [1900,'UDP','svchost.exe','SSDPSRV',3380,'0.0.0.0'],
+];
+document.getElementById('port-rows').innerHTML = ports.map(p => `
+  <li class="row r-ptable">
+    <span class="num" style="font-weight:600">${p[0]}</span>
+    <span class="t2 hide-m">${p[1]}</span>
+    <span class="cell-proc"><span>${p[2]}</span>${p[3] ? `<span class="t3">${p[3]}</span>` : ''}</span>
+    <span class="t2 num right hide-m">${p[4]}</span>
+    <span class="t2 mono hide-m trunc">${p[5]}</span>
+    <span class="actions"><button class="icon-btn danger" aria-label="Stop ${p[2]}" data-stop="${p[0]}|${p[2]}|${p[4]}"><svg class="i"><use href="#i-stop"/></svg></button></span>
+  </li>`).join('');
+
+const clean = [
+  ['vijideck\\target','Rust build output',8.2,true],
+  ['shop-web\\node_modules','npm dependencies',3.4,true],
+  ['old-landing\\node_modules','npm dependencies · untouched 9 months',2.1,true],
+  ['ml-sandbox\\.venv','Python virtual environment',1.8,false],
+  ['tauri-demo\\src-tauri\\target','Rust build output',3.1,false],
+  ['shop-api\\bin\\Debug','.NET build output',0.6,false],
+];
+const cr = document.getElementById('clean-rows');
+cr.innerHTML = clean.map((c,i) => `
+  <li class="row r-clean" role="checkbox" tabindex="0" aria-checked="${c[3]}" data-i="${i}">
+    <span class="check"><svg class="i"><use href="#i-check"/></svg></span>
+    <span class="cell-proc"><span>${c[0]}</span><span class="t3">${c[1]}</span></span>
+    <span class="num right">${c[2].toFixed(1)} GB</span>
+  </li>`).join('');
+function updateSel() {
+  const on = [...cr.children].filter(r => r.getAttribute('aria-checked') === 'true');
+  const gb = on.reduce((s, r) => s + clean[r.dataset.i][2], 0);
+  document.getElementById('sel-size').textContent = gb.toFixed(1) + ' GB';
+  document.getElementById('sel-count').textContent = `in ${on.length} folder${on.length === 1 ? '' : 's'}`;
+  document.getElementById('clean-btn').disabled = !on.length;
+  document.getElementById('clean-btn').style.opacity = on.length ? 1 : .5;
+}
+cr.addEventListener('click', e => {
+  const r = e.target.closest('.row'); if (!r) return;
+  r.setAttribute('aria-checked', r.getAttribute('aria-checked') !== 'true'); updateSel();
+});
+cr.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.target.click(); } });
+updateSel();
+
+/* gauges */
+const SWEEP = 75; // 270° of a pathLength=100 circle
+function gaugeSvg() {
+  const ticks = Array.from({ length: 11 }, (_, i) => {
+    const a = (135 + i * 27) * Math.PI / 180;
+    const r1 = 70, r2 = i % 5 === 0 ? 63 : 66;
+    return `<line class="tick" x1="${80 + r1 * Math.cos(a)}" y1="${80 + r1 * Math.sin(a)}" x2="${80 + r2 * Math.cos(a)}" y2="${80 + r2 * Math.sin(a)}"/>`;
+  }).join('');
+  const arc = cls => `<circle class="${cls}" cx="80" cy="80" r="56" pathLength="100" transform="rotate(135 80 80)"/>`;
+  return `<svg viewBox="0 0 160 160" aria-hidden="true">${ticks}${arc('track')}${arc('halo')}${arc('val')}</svg>
+          <div class="readout"><b class="num"></b></div>`;
+}
+function setGauge(card, v) {
+  v = Math.max(0, Math.min(100, v));
+  card.dataset.value = v;
+  card.classList.toggle('warn', v >= 80);
+  const dash = `${(v / 100) * SWEEP} 100`;
+  card.querySelector('.val').style.strokeDasharray = dash;
+  card.querySelector('.halo').style.strokeDasharray = dash;
+  card.querySelector('.readout b').innerHTML = `${Math.round(v)}<small>%</small>`;
+  card.querySelector('.gauge').setAttribute('aria-label', `${card.querySelector('.label').textContent} ${Math.round(v)} percent`);
+}
+document.querySelectorAll('[data-gauge]').forEach(card => {
+  const g = card.querySelector('.gauge');
+  g.setAttribute('role', 'img');
+  g.innerHTML = gaugeSvg();
+  card.querySelector('.track').style.strokeDasharray = `${SWEEP} 100`;
+  ['val', 'halo'].forEach(c => card.querySelector('.' + c).style.strokeDasharray = '0 100');
+  const target = +card.dataset.value;
+  requestAnimationFrame(() => requestAnimationFrame(() => setGauge(card, target)));
+});
+// live telemetry feel for CPU/GPU (data updates, not decoration)
+setInterval(() => {
+  document.querySelectorAll('[data-live]').forEach(card => {
+    const v = +card.dataset.value + (Math.random() - 0.5) * 10;
+    setGauge(card, Math.max(2, Math.min(64, v)));
+  });
+}, 2000);
+
+const titles = { overview:'Overview', ports:'Ports', processes:'Processes', services:'Services', docker:'Docker', cleanup:'Disk cleanup', environment:'Developer environment', logs:'System logs' };
+function go(v) {
+  document.querySelectorAll('.nav button[data-view]').forEach(b => {
+    if (b.dataset.view === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.view').forEach(s => s.classList.remove('on'));
+  const el = document.getElementById('v-' + v) || document.getElementById('v-empty');
+  el.classList.add('on');
+  document.getElementById('title').textContent = titles[v];
+  if (!document.getElementById('v-' + v)) document.getElementById('empty-text').textContent = `${titles[v]} is not mocked yet — it uses the same shell, rows and inspector patterns as Ports.`;
+  window.scrollTo({ top: 0 });
+}
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => go(b.dataset.view));
+document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+
+const scrim = document.getElementById('scrim');
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-stop]'); if (!s) return;
+  const [port, name, pid] = s.dataset.stop.split('|');
+  document.getElementById('dlg-title').textContent = `Stop ${name} on port ${port}?`;
+  document.getElementById('dlg-text').textContent = `Process ${pid} will be terminated. Unsaved work in that process will be lost.`;
+  scrim.classList.add('on'); document.getElementById('dlg-cancel').focus();
+});
+const close = () => scrim.classList.remove('on');
+document.getElementById('dlg-cancel').onclick = close;
+document.getElementById('dlg-ok').onclick = close;
+scrim.onclick = e => { if (e.target === scrim) close(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+const root = document.documentElement, tb = document.getElementById('theme');
+tb.onclick = () => {
+  const dark = root.dataset.theme !== 'dark';
+  root.dataset.theme = dark ? 'dark' : 'light';
+  tb.querySelector('span').textContent = dark ? 'Light theme' : 'Dark theme';
+};
+</script>
+</body>
+</html>

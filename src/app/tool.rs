@@ -12,15 +12,42 @@ pub(super) enum Tool {
 }
 
 impl Tool {
+    /// Navigation order of the rail.
+    pub(super) const ALL: [Self; 8] = [
+        Self::Overview,
+        Self::Ports,
+        Self::Processes,
+        Self::Services,
+        Self::Docker,
+        Self::Cleanup,
+        Self::Environment,
+        Self::Logs,
+    ];
+
+    /// Short rail label.
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Ports => "Ports",
+            Self::Cleanup => "Cleanup",
+            Self::Overview => "Overview",
+            Self::Logs => "Logs",
+            Self::Processes => "Processes",
+            Self::Environment => "Environment",
+            Self::Docker => "Docker",
+            Self::Services => "Services",
+        }
+    }
+
+    /// Descriptive title, shown as the rail tooltip.
     pub(super) fn title(self) -> &'static str {
         match self {
             Self::Ports => "Port manager",
             Self::Cleanup => "Disk cleanup",
-            Self::Overview => "Overview",
+            Self::Overview => "System overview",
             Self::Logs => "System logs",
-            Self::Processes => "Processes",
+            Self::Processes => "Process manager",
             Self::Environment => "Developer environment",
-            Self::Docker => "Docker",
+            Self::Docker => "Docker containers",
             Self::Services => "Services",
         }
     }

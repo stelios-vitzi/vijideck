@@ -340,7 +340,7 @@ impl Environment {
                                 let min = (rect.center() - size / 2.0).round_to_pixels(scale);
                                 ui.painter().image(icon.id(), egui::Rect::from_min_size(min, size), egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
                             } else {
-                                ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, "?", egui::FontId::proportional(16.0), CYAN);
+                                ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, "?", egui::FontId::proportional(16.0), ACCENT);
                             }
                             ui.add_space(5.0);
                             ui.vertical(|ui| {
@@ -354,9 +354,9 @@ impl Environment {
                                     ui.horizontal_wrapped(|ui| {
                                         for version in &versions {
                                             let color = match version.origin {
-                                                "Bundled" => AMBER,
+                                                "Bundled" => WARNING,
                                                 "Unknown origin" => MUTED,
-                                                _ => CYAN,
+                                                _ => ACCENT,
                                             };
                                             egui::Frame::new()
                                                 .fill(color.gamma_multiply(0.09))
@@ -381,7 +381,7 @@ impl Environment {
                                 egui::Frame::new().fill(PANEL).corner_radius(5).inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
                                 ui.set_min_width(ui.available_width());
                                 let title = format!("{}   Â·   {}", category, section.len());
-                                let mut category_header = egui::CollapsingHeader::new(RichText::new(title).size(12.0).color(CYAN).strong())
+                                let mut category_header = egui::CollapsingHeader::new(RichText::new(title).size(12.0).color(ACCENT).strong())
                                     .id_salt((group, category)).default_open(true);
                                 if !query.is_empty() { category_header = category_header.open(Some(true)); }
                                 category_header.show(ui, |ui| {
@@ -389,7 +389,7 @@ impl Environment {
                                 let origin_entries: Vec<_> = section.iter().copied().filter(|e| e.origin.label() == origin).collect();
                                 if origin_entries.is_empty() { continue; }
                                 ui.add_space(8.0);
-                                ui.label(RichText::new(origin).size(11.0).strong().color(if origin == "Bundled" { AMBER } else { MUTED }));
+                                ui.label(RichText::new(origin).size(11.0).strong().color(if origin == "Bundled" { WARNING } else { MUTED }));
                                 for aliases in group_aliases(&origin_entries) {
                                     let e = aliases[0];
                                     ui.add_space(6.0);
@@ -399,13 +399,13 @@ impl Environment {
                                     });
                                     for e in aliases {
                                     ui.horizontal(|ui| {
-                                        ui.label(RichText::new(if e.on_path { "On PATH" } else { "Not on PATH" }).size(11.0).color(if e.on_path { CYAN } else { AMBER }));
+                                        ui.label(RichText::new(if e.on_path { "On PATH" } else { "Not on PATH" }).size(11.0).color(if e.on_path { ACCENT } else { WARNING }));
                                         ui.label(RichText::new(e.origin.label()).size(11.0).color(MUTED)).on_hover_text(e.origin.description());
                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                             ui.push_id(&e.path, |ui| {
                                                 let (menu_rect, menu_response) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::click());
                                                 if menu_response.hovered() || menu_response.has_focus() { ui.painter().rect_filled(menu_rect, 4.0, LINE); }
-                                                let menu_color = if menu_response.hovered() || menu_response.has_focus() { CYAN } else { MUTED };
+                                                let menu_color = if menu_response.hovered() || menu_response.has_focus() { ACCENT } else { MUTED };
                                                 for offset in [-5.0, 0.0, 5.0] { ui.painter().circle_filled(menu_rect.center() + egui::vec2(0.0, offset), 1.4, menu_color); }
                                                 let menu_response = menu_response.on_hover_text("Installation actions");
                                                 egui::Popup::menu(&menu_response).show(|ui| {
@@ -429,7 +429,7 @@ impl Environment {
                                                     });
                                                 let (rect, copy) = ui.allocate_exact_size(egui::vec2(28.0, 28.0), egui::Sense::click());
                                                 if copy.hovered() || copy.has_focus() { ui.painter().rect_filled(rect, 4.0, LINE); }
-                                                let color = if copy.hovered() || copy.has_focus() { CYAN } else { MUTED };
+                                                let color = if copy.hovered() || copy.has_focus() { ACCENT } else { MUTED };
                                                 let a = egui::Rect::from_min_size(rect.min + egui::vec2(8.0, 6.0), egui::vec2(10.0, 12.0));
                                                 let b = a.translate(egui::vec2(3.0, 3.0));
                                                 ui.painter().rect_stroke(a, 1.0, egui::Stroke::new(1.0_f32, color), egui::StrokeKind::Inside);
@@ -477,7 +477,7 @@ impl Environment {
             egui::Window::new("Run unverified file?").collapsible(false).resizable(false).show(ctx, |ui| {
                 ui.label("This file was found outside trusted install locations, so VijiDeck has not run it. Checking its version runs it:");
                 ui.add(egui::Label::new(path.to_string_lossy()).selectable(true).wrap());
-                ui.label(RichText::new("Only continue if you know where this file came from. Files inside downloaded projects can run any code.").color(AMBER));
+                ui.label(RichText::new("Only continue if you know where this file came from. Files inside downloaded projects can run any code.").color(WARNING));
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() { self.run_confirmation = None; }
                     if ui.button("Run and remember").clicked() {

@@ -13,6 +13,15 @@ Their MIT license and copyright notice are in
 Logo trademarks belong to their respective owners. `build.svg`, `packages.svg`,
 and `tools.svg` are original VijiDeck illustrations.
 
+## Geist fonts
+
+`Geist-Regular`, `Geist-Light`, `Geist-Medium`, `GeistMono-Regular`, and
+`GeistMono-Light` in `assets/fonts/` are vendored, unmodified, from the
+[`geist` npm package v1.3.1](https://www.npmjs.com/package/geist) and embedded in
+the binary as the interface typeface. Copyright (c) 2023 Vercel, in collaboration
+with basement.studio. They are licensed under the SIL Open Font License 1.1, whose
+full text is in [assets/fonts/OFL.txt](assets/fonts/OFL.txt).
+
 ## Rust and native dependencies
 
 `Cargo.lock` and `xtask/Cargo.lock` record resolved Rust dependencies. Cargo

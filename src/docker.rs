@@ -211,8 +211,8 @@ impl Docker {
             });
             ui.add_space(8.0);
             caption(ui, &format!("{} containers · {} running", self.containers.len(), self.containers.iter().filter(|c| c.state == "running").count()));
-            if let Some(error) = &self.error { ui.colored_label(RED, error); }
-            if let Some((notice, error)) = &self.notice { ui.colored_label(if *error { RED } else { CYAN }, notice); }
+            if let Some(error) = &self.error { ui.colored_label(DANGER, error); }
+            if let Some((notice, error)) = &self.notice { ui.colored_label(if *error { DANGER } else { ACCENT }, notice); }
             ui.add_space(8.0);
             rule(ui);
             let rows = display_rows(&self.containers, &self.expanded, &self.query, self.running_only);
@@ -244,12 +244,12 @@ impl Docker {
                                         if compose_toggle(ui, expanded).clicked()
                                             && !self.expanded.remove(&entry.name) { self.expanded.insert(entry.name.clone()); }
                                     } else { ui.add_space(if entry.child { 34.0 } else { 8.0 }); }
-                                    ui.add(egui::Label::new(RichText::new(&entry.name).strong().color(if entry.project { CYAN } else { TEXT })).truncate())
+                                    ui.add(egui::Label::new(RichText::new(&entry.name).strong().color(if entry.project { ACCENT } else { TEXT })).truncate())
                                         .on_hover_text(&entry.name);
                                 });
                             });
                             row.col(|ui| {
-                                if entry.project { badge(ui, "COMPOSE", CYAN); }
+                                if entry.project { badge(ui, "COMPOSE", ACCENT); }
                                 else {
                                     let c = &entry.containers[0];
                                     ui.add(egui::Label::new(RichText::new(&c.image).size(12.0)).truncate()).on_hover_text(&c.image);
@@ -259,7 +259,7 @@ impl Docker {
                                 if entry.project { ui.label(RichText::new(format!("{} / {} running", entry.running, entry.containers.len())).size(12.0).color(MUTED)); }
                                 else {
                                     let c = &entry.containers[0];
-                                    badge(ui, &c.state, if c.state == "running" { CYAN } else { MUTED });
+                                    badge(ui, &c.state, if c.state == "running" { ACCENT } else { MUTED });
                                     ui.response().on_hover_text(&c.status);
                                 }
                             });
@@ -277,10 +277,10 @@ impl Docker {
                                     actions(ui, &entry.name, &entry.containers, busy, &mut request);
                                     if !entry.project {
                                         let container = &entry.containers[0];
-                                        if action_icon(ui, ">_", "Open container terminal", CYAN, !busy && self.terminal_rx.is_none() && container.state == "running").clicked() {
+                                        if action_icon(ui, ">_", "Open container terminal", ACCENT, !busy && self.terminal_rx.is_none() && container.state == "running").clicked() {
                                             open_terminal = Some(container.id.clone());
                                         }
-                                        if ui.button(RichText::new("Logs").color(CYAN)).clicked() { open_logs = Some(container.clone()); }
+                                        if ui.button(RichText::new("Logs").color(ACCENT)).clicked() { open_logs = Some(container.clone()); }
                                     }
                                 });
                             });
@@ -319,7 +319,7 @@ impl Docker {
                 for c in &request.containers { ui.label(&c.name); }
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() { self.confirmation = None; }
-                    if ui.button(RichText::new("Delete containers").color(RED)).clicked() { self.confirmation = None; self.launch(ctx, Some(request.clone())); }
+                    if ui.button(RichText::new("Delete containers").color(DANGER)).clicked() { self.confirmation = None; self.launch(ctx, Some(request.clone())); }
                 });
             });
         }
@@ -407,7 +407,11 @@ fn actions(
             ui,
             icon,
             action.label(),
-            if action == Action::Delete { RED } else { CYAN },
+            if action == Action::Delete {
+                DANGER
+            } else {
+                ACCENT
+            },
             !busy && !targets.is_empty(),
         )
         .clicked()

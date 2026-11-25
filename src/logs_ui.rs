@@ -256,7 +256,7 @@ impl Logs {
                                 let between = date > self.start_date && date < self.end_date;
                                 let label =
                                     RichText::new(date.day().to_string()).color(if selected {
-                                        CYAN
+                                        ACCENT
                                     } else if between {
                                         TEXT
                                     } else {
@@ -326,7 +326,7 @@ impl Logs {
                         });
                 });
                 if let Some(error) = &self.range_error {
-                    ui.colored_label(AMBER, error);
+                    ui.colored_label(WARNING, error);
                 }
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() {
@@ -486,7 +486,7 @@ impl Logs {
                     });
                 }
                 if let Some(e) = &self.error {
-                    ui.colored_label(AMBER, &e.message);
+                    ui.colored_label(WARNING, &e.message);
                 }
                 let restricted = self.error.as_ref().is_some_and(|e| e.permission_denied)
                     || self.snapshot.as_ref().is_some_and(|s| s.access_limited);
@@ -665,7 +665,7 @@ mod tests {
             .iter()
             .filter(|s| {
                 matches!(&s.shape,
-                    egui::Shape::Rect(r) if r.fill == egui::Color32::from_rgb(17, 39, 48)
+                    egui::Shape::Rect(r) if r.fill == crate::ui::SELECTED_FILL
                 )
             })
             .count()

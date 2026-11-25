@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VijiDeck Glacier</title>
+<!--
+  Exploration v4 "Glacier"
+  Mode: dark-first + light   Neutral: cold ink (H 258)   Accent: ice violet (H 278)
+  Secondary: glacier teal (H 190), used only as a second data tone
+  Warning: cold rose (H 355) — no orange, no earth tones
+  Density: airy             Depth: flat (no cards)      Motion: subtle
+  Layout idea: text-only index rail, bare canvas, hairline gauges with end-point beads,
+               light-weight numerals, everything separated by space instead of containers
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --H: 258;
+  --AH: 278;
+  --TH: 190;
+  color-scheme: dark;
+  --canvas:   oklch(16.5% 0.022 var(--H));
+  --rail:     oklch(14.8% 0.022 var(--H));
+  --raise:    oklch(21% 0.026 var(--H));
+  --fill:     oklch(92% 0.02 var(--H) / 0.05);
+  --fill-2:   oklch(92% 0.02 var(--H) / 0.09);
+  --hair:     oklch(92% 0.03 var(--H) / 0.07);
+  --text-1:   oklch(95% 0.012 var(--H));
+  --text-2:   oklch(76% 0.022 var(--H));
+  --text-3:   oklch(62% 0.025 var(--H));
+  --accent:   oklch(76% 0.13 var(--AH));
+  --accent-2: oklch(80% 0.10 var(--TH));
+  --accent-ink: oklch(18% 0.04 var(--AH));
+  --accent-tint: oklch(76% 0.13 var(--AH) / 0.12);
+  --track:    oklch(92% 0.03 var(--H) / 0.09);
+  --g-cpu:    oklch(76% 0.13 285);
+  --g-mem:    oklch(81% 0.11 190);
+  --g-gpu:    oklch(76% 0.12 240);
+  --warning:  oklch(74% 0.15 355);
+  --danger:   oklch(68% 0.17 15);
+  --shadow:   0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 20px 60px oklch(5% 0.02 var(--H) / 0.55);
+  --glow-a:   oklch(40% 0.12 var(--AH) / 0.16);
+  --glow-b:   oklch(45% 0.09 var(--TH) / 0.08);
+  --font: "Geist", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  --r: 10px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --canvas:   oklch(97.4% 0.008 var(--H));
+  --rail:     oklch(95.4% 0.011 var(--H));
+  --raise:    oklch(99.6% 0.003 var(--H));
+  --fill:     oklch(40% 0.04 var(--H) / 0.05);
+  --fill-2:   oklch(40% 0.04 var(--H) / 0.09);
+  --hair:     oklch(40% 0.04 var(--H) / 0.09);
+  --text-1:   oklch(22% 0.03 var(--H));
+  --text-2:   oklch(42% 0.03 var(--H));
+  --text-3:   oklch(53% 0.03 var(--H));
+  --accent:   oklch(55% 0.17 var(--AH));
+  --accent-2: oklch(60% 0.10 var(--TH));
+  --accent-ink: oklch(99% 0.005 var(--AH));
+  --accent-tint: oklch(55% 0.17 var(--AH) / 0.09);
+  --track:    oklch(40% 0.04 var(--H) / 0.10);
+  --g-cpu:    oklch(55% 0.17 285);
+  --g-mem:    oklch(58% 0.11 190);
+  --g-gpu:    oklch(56% 0.15 240);
+  --warning:  oklch(56% 0.19 355);
+  --danger:   oklch(54% 0.19 15);
+  --shadow:   0 1px 2px oklch(30% 0.04 var(--H) / 0.06), 0 24px 60px oklch(30% 0.05 var(--H) / 0.14);
+  --glow-a:   oklch(85% 0.06 var(--AH) / 0.45);
+  --glow-b:   oklch(90% 0.05 var(--TH) / 0.35);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100dvh;
+  font: 400 15px/1.55 var(--font);
+  color: var(--text-1);
+  background:
+    radial-gradient(900px 520px at 78% -8%, var(--glow-a), transparent 70%),
+    radial-gradient(700px 420px at 30% 110%, var(--glow-b), transparent 70%),
+    var(--canvas);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; border: 0; background: none; }
+button { cursor: pointer; }
+:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.t2 { color: var(--text-2); } .t3 { color: var(--text-3); }
+.trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100dvh; }
+.rail {
+  position: sticky; top: 0; height: 100dvh;
+  display: flex; flex-direction: column; gap: 40px;
+  padding: 32px 20px 24px 28px;
+  background: var(--rail);
+}
+.mark { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -0.02em; font-size: 15px; }
+.mark svg { width: 18px; height: 18px; }
+.nav { display: flex; flex-direction: column; gap: 2px; margin: 0 -10px; }
+.nav button {
+  display: flex; align-items: center; gap: 14px;
+  height: 36px; padding: 0 10px; border-radius: 8px;
+  color: var(--text-3); font-size: 14px; text-align: left;
+  transition: color 160ms var(--ease), background 160ms var(--ease);
+}
+.nav button .n { font-family: var(--mono); font-size: 11px; line-height: 1; width: 16px; opacity: 0.7; }
+.nav button:hover { color: var(--text-1); background: var(--fill); }
+.nav button[aria-current="page"] { color: var(--text-1); }
+.nav button[aria-current="page"] .n { color: var(--accent); opacity: 1; }
+.rail-foot { margin-top: auto; display: grid; gap: 14px; font-size: 13px; color: var(--text-3); }
+.rail-foot .host { display: grid; gap: 2px; }
+.rail-foot .host b { color: var(--text-2); font-weight: 500; }
+.pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 0 var(--accent-2); animation: pulse 2.4s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 oklch(from var(--accent-2) l c h / 0.5); } 70%,100% { box-shadow: 0 0 0 8px oklch(from var(--accent-2) l c h / 0); } }
+.theme-btn { display: inline-flex; align-items: center; gap: 8px; color: var(--text-3); padding: 6px 0; font-size: 13px; }
+.theme-btn:hover { color: var(--text-1); }
+
+.main { padding: 28px clamp(16px, 4.5vw, 64px) 96px; min-width: 0; }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 40px; }
+.crumb { font-size: 13px; color: var(--text-3); letter-spacing: 0.02em; }
+.cmd {
+  display: flex; align-items: center; gap: 10px;
+  width: min(340px, 52vw); height: 38px; padding: 0 8px 0 14px; border-radius: 999px;
+  background: var(--fill); color: var(--text-3); font-size: 14px;
+  transition: background 160ms var(--ease);
+}
+.cmd:hover { background: var(--fill-2); }
+.cmd span { flex: 1; text-align: left; }
+.kbd { font-family: var(--mono); font-size: 11px; padding: 3px 7px; border-radius: 6px; background: var(--fill-2); color: var(--text-2); }
+
+.view { display: none; animation: enter 320ms var(--ease); }
+.view.on { display: block; }
+@keyframes enter { from { opacity: 0; transform: translateY(4px); } }
+
+.hero { margin: 56px auto 0; max-width: 640px; text-align: center; }
+.hero h1 { margin: 0; font-size: clamp(20px, 2vw, 24px); font-weight: 300; letter-spacing: -0.02em; line-height: 1.35; }
+.hero h1 em { font-style: normal; color: var(--warning); }
+.hero p { margin: 6px 0 0; color: var(--text-3); font-size: 14px; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 56px 0 32px; }
+.head h1 { margin: 0; font-size: clamp(28px, 3.6vw, 40px); font-weight: 300; letter-spacing: -0.035em; line-height: 1.1; }
+.head p { margin: 8px 0 0; color: var(--text-2); }
+
+/* ---------- gauges: 270° arc, value centered, one detail line, warning ≥80% ---------- */
+.gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(12px, 4vw, 64px); margin-top: 64px; }
+.gauge { --c: var(--accent); display: grid; justify-items: center; text-align: center; min-width: 0; }
+.gauge.g-cpu { --c: var(--g-cpu); }
+.gauge.g-mem { --c: var(--g-mem); }
+.gauge.g-gpu { --c: var(--g-gpu); }
+.gauge.warn { --c: var(--warning); }
+.gauge .face { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; }
+.gauge svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.gauge .track { fill: none; stroke: var(--track); stroke-width: 2; stroke-linecap: round; }
+.gauge .val { fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; transition: stroke-dashoffset 900ms var(--ease); }
+.gauge .halo { fill: none; stroke: var(--c); stroke-width: 4; stroke-linecap: round; opacity: 0.22; filter: blur(3px); transition: stroke-dashoffset 900ms var(--ease); }
+:root[data-theme="light"] .gauge .halo { opacity: 0.14; }
+.gauge .val { filter: drop-shadow(0 0 1.5px oklch(from var(--c) l c h / 0.35)); }
+.gauge .bead { fill: var(--canvas); stroke: var(--c); stroke-width: 2; transition: transform 900ms var(--ease); }
+.gauge .bead-glow { fill: var(--c); opacity: 0.14; transition: transform 900ms var(--ease); }
+.gauge .readout { position: absolute; inset: 0; display: grid; place-content: center; }
+.gauge .readout b { font-family: var(--mono); font-weight: 300; font-size: clamp(26px, 4.6vw, 64px); letter-spacing: -0.06em; line-height: 1; font-variant-numeric: tabular-nums; }
+.gauge .readout b small { font-size: 0.4em; color: var(--text-3); margin-left: 2px; letter-spacing: 0; }
+.gauge h3 { margin: -22px 0 4px; font-size: 15px; font-weight: 500; }
+.gauge h3::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--c); margin-right: 8px; vertical-align: 2px; }
+.gauge .detail { color: var(--text-3); font-size: 13px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- lower sections ---------- */
+.cols { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 96px); margin-top: 88px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.sec-head h2 { margin: 0; font-size: 13px; font-weight: 500; color: var(--text-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.link { color: var(--accent); font-size: 13px; font-weight: 500; padding: 4px 0; }
+.link:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+.rows { list-style: none; margin: 0 -12px; padding: 0; }
+.row { position: relative; display: grid; align-items: center; gap: 16px; min-height: 48px; padding: 6px 12px; border-radius: var(--r); transition: background 160ms var(--ease); }
+.row:hover { background: var(--fill); }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: var(--hair); }
+.row:hover::before, .row:hover + .row::before { opacity: 0; }
+.row .actions { display: flex; justify-content: flex-end; gap: 2px; opacity: 0; transition: opacity 160ms var(--ease); }
+.row:hover .actions, .row:focus-within .actions { opacity: 1; }
+@media (hover: none) { .row .actions { opacity: 1; } }
+.r-port { grid-template-columns: 64px minmax(0, 1fr) auto; }
+.r-port .p { color: var(--accent); }
+.cell { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.cell span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell .t3 { font-size: 13px; }
+
+.big { font-family: var(--font); font-variant-numeric: tabular-nums; font-weight: 300; font-size: 64px; letter-spacing: -0.05em; line-height: 1; margin: 8px 0 10px; }
+.big small { font-size: 20px; color: var(--text-3); letter-spacing: 0; margin-left: 6px; }
+.thin-bar { display: flex; gap: 3px; height: 4px; margin: 28px 0 18px; }
+.thin-bar i { display: block; border-radius: 2px; }
+.thin-bar i:nth-child(1) { background: var(--accent); }
+.thin-bar i:nth-child(2) { background: var(--accent-2); }
+.thin-bar i:nth-child(3) { background: var(--text-3); }
+.thin-bar i:last-child { flex: 1; background: var(--track); }
+.legend { list-style: none; padding: 0; margin: 0 0 32px; display: grid; gap: 8px; font-size: 14px; }
+.legend li { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); }
+.legend li span::before { content: ""; display: inline-block; width: 8px; height: 2px; border-radius: 1px; margin-right: 10px; vertical-align: 4px; background: var(--k); }
+.legend b { font-weight: 400; color: var(--text-1); font-family: var(--mono); font-size: 13px; }
+
+/* machine spec */
+.spec { margin: 0; display: grid; }
+.spec > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 16px; padding: 12px 0; align-items: baseline; }
+.spec > div + div { box-shadow: 0 -1px 0 var(--hair); }
+.spec dt { color: var(--text-3); font-size: 13px; }
+.spec dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.spec dd .t3 { font-size: 14px; }
+
+/* drives */
+.drives { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
+.drive { --c: var(--accent); }
+.drive.warn { --c: var(--warning); }
+.d-top, .d-sub { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.d-top b { font-weight: 500; font-family: var(--mono); margin-right: 6px; }
+.d-sub { font-size: 13px; margin-top: 8px; }
+.d-sub span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.d-bar { height: 3px; border-radius: 2px; background: var(--track); margin-top: 10px; }
+.d-bar i { display: block; height: 100%; width: var(--u); border-radius: inherit; background: var(--c); box-shadow: 0 0 10px oklch(from var(--c) l c h / 0.55); }
+.tag { font-size: 11px; font-family: var(--mono); color: var(--text-3); background: var(--fill-2); padding: 2px 6px; border-radius: 5px; margin-left: 6px; vertical-align: 1px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 20px; border-radius: 999px; font-weight: 500; font-size: 14px; white-space: nowrap; transition: transform 100ms var(--ease), background 160ms var(--ease), filter 160ms var(--ease); }
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.ghost { background: var(--fill); }
+.btn.ghost:hover { background: var(--fill-2); }
+.btn.danger { background: var(--danger); color: oklch(99% 0 0); }
+.icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; color: var(--text-3); transition: background 160ms var(--ease), color 160ms var(--ease); }
+.icon-btn:hover { background: var(--fill-2); color: var(--text-1); }
+.icon-btn.danger:hover { color: var(--danger); }
+
+/* ports */
+.seg { display: flex; padding: 3px; border-radius: 999px; background: var(--fill); }
+.seg button { height: 30px; padding: 0 14px; border-radius: 999px; font-size: 13px; color: var(--text-2); }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--text-1); box-shadow: 0 1px 3px oklch(5% 0.02 var(--H) / 0.25); }
+.thead { display: grid; gap: 16px; padding: 0 0 8px; font-size: 12px; color: var(--text-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.r-pt, .thead.pt { grid-template-columns: 80px 52px minmax(0, 1.4fr) 72px minmax(0, 1fr) 40px; }
+.right { text-align: right; }
+
+/* docker */
+.engine-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--g-mem); margin-right: 10px; vertical-align: 2px; box-shadow: 0 0 6px oklch(from var(--g-mem) l c h / 0.6); }
+.dk-stats { display: flex; flex-wrap: wrap; gap: 12px clamp(24px, 4vw, 56px); margin: 0 0 48px; }
+.dk-stats div { display: grid; gap: 2px; }
+.dk-stats span { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.dk-stats b { font-family: var(--font); font-weight: 300; font-size: 32px; letter-spacing: -0.04em; line-height: 1.1; }
+.dk-stats b small { font-size: 14px; color: var(--text-3); margin-left: 3px; letter-spacing: 0; }
+
+.group + .group { margin-top: 44px; }
+.g-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 6px; min-height: 36px; }
+.g-head .g-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.g-head h2 { margin: 0; font-size: 16px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; }
+.g-head .g-path { font-family: var(--mono); font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.g-head .g-count { font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.g-actions { display: flex; gap: 6px; flex: none; }
+.btn.sm { height: 32px; padding: 0 14px; font-size: 13px; }
+
+.r-dk { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 92px 104px 92px 108px; min-height: 60px; }
+.thead.dk { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 92px 104px 92px 108px; padding: 0 12px 8px; margin: 0 -12px; }
+.ctr { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ctr .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--g-mem); box-shadow: 0 0 6px oklch(from var(--g-mem) l c h / 0.55); }
+.ctr .dot.off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-3); }
+.ctr .dot.unhealthy { background: var(--warning); box-shadow: 0 0 6px oklch(from var(--warning) l c h / 0.55); }
+.ctr .cell span:first-child { font-weight: 500; }
+.ctr .cell .t3 { font-family: var(--mono); font-size: 12px; }
+.pchips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pchip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--fill); font-family: var(--mono); font-size: 12px; color: var(--text-2); text-decoration: none; transition: background 160ms var(--ease), color 160ms var(--ease); }
+.pchip:hover { background: var(--accent-tint); color: var(--accent); }
+.pchip svg { width: 11px; height: 11px; }
+.meter { display: grid; gap: 5px; }
+.meter .num { font-size: 13px; color: var(--text-2); }
+.meter i { display: block; height: 2px; border-radius: 1px; background: var(--track); overflow: hidden; }
+.meter i::after { content: ""; display: block; height: 100%; width: var(--m); background: var(--mc, var(--g-cpu)); border-radius: inherit; transition: width 600ms var(--ease); }
+.meter.mem { --mc: var(--g-mem); }
+.uptime { font-size: 13px; color: var(--text-3); }
+.row.stopped .cell span:first-child { color: var(--text-2); font-weight: 400; }
+.badge { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 1px 6px; border-radius: 5px; margin-left: 8px; vertical-align: 1px; background: var(--fill-2); color: var(--text-3); font-weight: 400; }
+.badge.on { background: var(--accent-tint); color: var(--accent); }
+.badge.warn { background: oklch(from var(--warning) l c h / 0.12); color: var(--warning); }
+.r-img { grid-template-columns: minmax(0, 1.4fr) 120px 96px 110px 48px; }
+.r-vol { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 96px 48px; }
+.dk-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px; color: var(--text-3); font-size: 14px; }
+
+/* cleanup */
+.r-cl { grid-template-columns: 20px minmax(0, 1fr) 88px; cursor: pointer; }
+.box { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px var(--text-3); display: grid; place-items: center; color: transparent; transition: background 160ms var(--ease), box-shadow 160ms var(--ease); }
+.box svg { width: 12px; height: 12px; stroke-width: 2.6; }
+.row[aria-checked="true"] .box { background: var(--accent); box-shadow: none; color: var(--accent-ink); }
+.bar {
+  position: sticky; bottom: 24px; margin-top: 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 8px 8px 8px 22px; border-radius: 999px;
+  background: oklch(from var(--raise) l c h / 0.8);
+  backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: var(--shadow);
+}
+.empty { min-height: 300px; display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center; color: var(--text-3); }
+.empty b { color: var(--text-2); font-weight: 400; font-size: 17px; }
+
+/* dialog */
+.scrim { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; padding: 16px; background: oklch(10% 0.03 var(--H) / 0.45); backdrop-filter: blur(6px); }
+.scrim.on { display: grid; animation: fade 180ms var(--ease); }
+@keyframes fade { from { opacity: 0; } }
+.dialog { width: min(400px, 100%); padding: 28px; border-radius: 18px; background: var(--raise); box-shadow: var(--shadow); animation: pop 240ms var(--ease); }
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.985); } }
+.dialog h2 { margin: 0 0 8px; font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
+.dialog p { margin: 0 0 24px; color: var(--text-2); font-size: 14px; }
+.dialog .btns { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .cols { grid-template-columns: 1fr; gap: 56px; margin-top: 64px; }
+}
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; align-content: start; }
+  .rail { min-width: 0; align-self: start; position: sticky; z-index: 10; height: auto; flex-direction: row; align-items: center; gap: 16px; padding: 12px 16px; background: oklch(from var(--rail) l c h / 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  .nav { flex-direction: row; overflow-x: auto; margin: 0; scrollbar-width: none; flex: 1; min-width: 0; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav button { flex: none; height: 32px; }
+  .nav button .n { display: none; }
+  .rail-foot { margin: 0; }
+  .rail-foot .host, .theme-btn span { display: none; }
+  .main { padding: 16px 16px 96px; }
+  .topline .crumb { display: none; }
+  .cmd { width: 100%; }
+  .gauges { margin-top: 32px; }
+  .hero { margin-top: 32px; }
+  .hero h1 { font-size: 18px; }
+  .head { flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 32px; }
+  .gauge h3 { margin-top: -10px; }
+  .gauge .detail { font-size: 12px; }
+  .thead { display: none; }
+  .r-pt { grid-template-columns: 60px minmax(0, 1fr) 34px; }
+  .r-dk { grid-template-columns: minmax(0, 1fr) auto; }
+  .hide-m { display: none; }
+  .dk-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 36px; }
+  .dk-stats b { font-size: 26px; }
+  .row .actions { opacity: 1; }
+  .big { font-size: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mark" viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 1 16 0" /><path d="M12 13l4.5-4.5"/><circle cx="12" cy="13" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><path d="m5 8 4 4-4 4M12 17h7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 12h6M9 16h4"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M9 6h9v9M18 6 6 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+</svg>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="mark"><svg class="i"><use href="#i-mark"/></svg>VijiDeck</div>
+    <nav class="nav" aria-label="Tools">
+      <button data-view="overview" aria-current="page"><span class="n">01</span>Overview</button>
+      <button data-view="ports"><span class="n">02</span>Ports</button>
+      <button data-view="processes"><span class="n">03</span>Processes</button>
+      <button data-view="services"><span class="n">04</span>Services</button>
+      <button data-view="docker"><span class="n">05</span>Docker</button>
+      <button data-view="cleanup"><span class="n">06</span>Cleanup</button>
+      <button data-view="environment"><span class="n">07</span>Environment</button>
+      <button data-view="logs"><span class="n">08</span>Logs</button>
+    </nav>
+    <div class="rail-foot">
+      <div class="host"><b>workstation</b><span>Windows 11 · up 3d 4h</span><span><i class="pulse"></i>Live · 1s</span></div>
+      <button class="theme-btn" id="theme" aria-label="Switch theme"><svg class="i"><use href="#i-theme"/></svg><span>Light theme</span></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topline">
+      <span class="crumb" id="crumb">Overview</span>
+      <button class="cmd" aria-label="Search or run a command"><svg class="i"><use href="#i-search"/></svg><span>Search or run…</span><span class="kbd">Ctrl K</span></button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section class="view on" id="v-overview">
+      <div class="gauges">
+        <div class="gauge g-cpu" data-value="23" data-live><div class="face"></div><h3>CPU</h3><span class="detail num">12 cores · 4.2 GHz</span></div>
+        <div class="gauge g-mem" data-value="57"><div class="face"></div><h3>Memory</h3><span class="detail num">18.4 / 32 GB</span></div>
+        <div class="gauge g-gpu" data-value="6" data-live><div class="face"></div><h3>GPU</h3><span class="detail num">0.9 / 12 GB VRAM</span></div>
+      </div>
+
+      <div class="hero">
+        <h1>Everything is steady. Disk C: is <em>running high</em> at 84%.</h1>
+        <p>24.7 GB of build caches can be reclaimed safely.</p>
+      </div>
+
+      <div class="cols">
+        <section>
+          <div class="sec-head"><h2>This machine</h2></div>
+          <dl class="spec">
+            <div><dt>Name</dt><dd>WORKSTATION</dd></div>
+            <div><dt>System</dt><dd>Windows 11 Pro <span class="t3">· 24H2 · build 26200</span></dd></div>
+            <div><dt>Processor</dt><dd>AMD Ryzen 9 7900X <span class="t3">· 12 cores · 24 threads</span></dd></div>
+            <div><dt>Graphics</dt><dd>NVIDIA GeForce RTX 4070 <span class="t3">· 12 GB</span></dd></div>
+            <div><dt>Memory</dt><dd>32 GB DDR5 <span class="t3">· 6000 MT/s · 2 of 4 slots</span></dd></div>
+            <div><dt>Board</dt><dd>ASUS TUF Gaming B650-Plus</dd></div>
+            <div><dt>Network</dt><dd>Ethernet 2.5 GbE <span class="t3 num">· 192.168.1.24</span></dd></div>
+            <div><dt>Uptime</dt><dd class="num">3d 4h 12m</dd></div>
+          </dl>
+        </section>
+        <section>
+          <div class="sec-head"><h2>Drives</h2><button class="link" data-go="cleanup">Free up space →</button></div>
+          <ul class="drives">
+            <li class="drive warn" style="--u:84%">
+              <div class="d-top"><span><b>C:</b> System</span><span class="num t2">842 / 1000 GB</span></div>
+              <div class="d-bar"><i></i></div>
+              <div class="d-sub t3"><span>Samsung 990 Pro · NVMe SSD</span><span class="num">158 GB free</span></div>
+            </li>
+            <li class="drive" style="--u:41%">
+              <div class="d-top"><span><b>D:</b> Projects</span><span class="num t2">820 / 2000 GB</span></div>
+              <div class="d-bar"><i></i></div>
+              <div class="d-sub t3"><span>WD Black SN850X · NVMe SSD</span><span class="num">1.18 TB free</span></div>
+            </li>
+            <li class="drive" style="--u:63%">
+              <div class="d-top"><span><b>E:</b> Archive</span><span class="num t2">2.5 / 4 TB</span></div>
+              <div class="d-bar"><i></i></div>
+              <div class="d-sub t3"><span>Seagate IronWolf · HDD · 7200 rpm</span><span class="num">1.5 TB free</span></div>
+            </li>
+            <li class="drive" style="--u:18%">
+              <div class="d-top"><span><b>F:</b> Backup <span class="tag">USB</span></span><span class="num t2">92 / 512 GB</span></div>
+              <div class="d-bar"><i></i></div>
+              <div class="d-sub t3"><span>Samsung T7 · external SSD</span><span class="num">420 GB free</span></div>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <!-- PORTS -->
+    <section class="view" id="v-ports">
+      <div class="head">
+        <div><h1>Ports</h1><p>9 listening sockets</p></div>
+        <div class="seg" role="group" aria-label="Protocol">
+          <button aria-pressed="true" data-proto="">All</button><button aria-pressed="false" data-proto="TCP">TCP</button><button aria-pressed="false" data-proto="UDP">UDP</button>
+        </div>
+      </div>
+      <div class="thead pt"><span>Port</span><span>Proto</span><span>Process</span><span class="right">PID</span><span>Address</span><span></span></div>
+      <ul class="rows" id="port-rows"></ul>
+    </section>
+
+    <!-- DOCKER -->
+    <section class="view" id="v-docker">
+      <div class="head">
+        <div><h1>Docker</h1><p><i class="engine-dot"></i>Docker Desktop 4.36 · Engine 27.3 · WSL 2</p></div>
+        <div class="seg" role="tablist" aria-label="Docker objects" id="dk-tabs">
+          <button aria-pressed="true" data-tab="containers">Containers</button><button aria-pressed="false" data-tab="images">Images</button><button aria-pressed="false" data-tab="volumes">Volumes</button>
+        </div>
+      </div>
+
+      <div class="dk-stats">
+        <div><span class="t3">Running</span><b class="num">5</b></div>
+        <div><span class="t3">Stopped</span><b class="num">2</b></div>
+        <div><span class="t3">CPU</span><b class="num" id="dk-cpu">3.4<small>%</small></b></div>
+        <div><span class="t3">Memory</span><b class="num">1.9<small>GB</small></b></div>
+        <div><span class="t3">Disk</span><b class="num">17.3<small>GB</small></b></div>
+      </div>
+
+      <div id="dk-containers"></div>
+      <div id="dk-images" hidden></div>
+      <div id="dk-volumes" hidden></div>
+    </section>
+
+    <!-- CLEANUP -->
+    <section class="view" id="v-cleanup">
+      <div class="head"><div><h1>Cleanup</h1><p>Folders that can be rebuilt from source</p></div><button class="btn ghost">Rescan</button></div>
+      <ul class="rows" id="clean-rows"></ul>
+      <div class="bar"><span><span class="num" id="sel-size">0 GB</span> <span class="t2">selected</span></span><button class="btn primary" id="clean-go">Move to Recycle Bin</button></div>
+    </section>
+
+    <section class="view" id="v-placeholder">
+      <div class="head"><div><h1 id="ph-title">Processes</h1><p>Not part of this exploration</p></div></div>
+      <div class="empty"><b>Same patterns apply here</b><span>Index rail, bare rows, hairline separators.</span></div>
+    </section>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+  <div class="dialog">
+    <h2 id="dlg-title">Stop process?</h2>
+    <p id="dlg-body"></p>
+    <div class="btns"><button class="btn ghost" id="dlg-cancel">Cancel</button><button class="btn danger" id="dlg-ok">Stop</button></div>
+  </div>
+</div>
+
+<script>
+/* ---------- gauges ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+const R = 44, C = 2 * Math.PI * R, SPAN = 0.75; // 270°
+function el(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function buildGauge(g) {
+  const svg = el('svg', { viewBox: '0 0 100 100', 'aria-hidden': 'true' });
+  const rot = 'rotate(135 50 50)';
+  svg.append(
+    el('circle', { class: 'track', cx: 50, cy: 50, r: R, transform: rot, 'stroke-dasharray': `${C * SPAN} ${C}` }),
+    el('circle', { class: 'halo', cx: 50, cy: 50, r: R, transform: rot, 'stroke-dasharray': `${C * SPAN} ${C}`, 'stroke-dashoffset': C * SPAN }),
+    el('circle', { class: 'val', cx: 50, cy: 50, r: R, transform: rot, 'stroke-dasharray': `${C * SPAN} ${C}`, 'stroke-dashoffset': C * SPAN }),
+  );
+  const glow = el('circle', { class: 'bead-glow', cx: 50 + R, cy: 50, r: 4.5 });
+  const bead = el('circle', { class: 'bead', cx: 50 + R, cy: 50, r: 2.6 });
+  svg.append(glow, bead);
+  const ro = document.createElement('div'); ro.className = 'readout';
+  ro.innerHTML = '<b><span></span><small>%</small></b>';
+  const face = g.querySelector('.face'); face.append(svg, ro);
+  g._val = svg.querySelector('.val'); g._halo = svg.querySelector('.halo'); g._beads = [glow, bead]; g._num = ro.querySelector('span');
+  g.setAttribute('role', 'meter'); g.setAttribute('aria-valuemin', 0); g.setAttribute('aria-valuemax', 100);
+  g.setAttribute('aria-label', g.querySelector('h3').textContent);
+}
+function setGauge(g, v) {
+  v = Math.max(0, Math.min(100, v));
+  g._val.setAttribute('stroke-dashoffset', C * SPAN * (1 - v / 100));
+  g._halo.setAttribute('stroke-dashoffset', C * SPAN * (1 - v / 100));
+  const a = 135 + 270 * v / 100;
+  g._beads.forEach(b => b.style.transform = `rotate(${a}deg)`);
+  g._beads.forEach(b => b.style.transformOrigin = '50px 50px');
+  g._num.textContent = Math.round(v);
+  g.classList.toggle('warn', v >= 80);
+  g.setAttribute('aria-valuenow', Math.round(v));
+}
+const gauges = [...document.querySelectorAll('.gauge')];
+gauges.forEach(g => { buildGauge(g); setGauge(g, 0); });
+requestAnimationFrame(() => requestAnimationFrame(() => gauges.forEach(g => setGauge(g, +g.dataset.value))));
+setInterval(() => gauges.filter(g => 'live' in g.dataset).forEach(g => {
+  const base = +g.dataset.value; setGauge(g, base + (Math.random() - 0.5) * base * 0.4);
+}), 1600);
+
+/* ---------- data ---------- */
+const ports = [
+  [3000,'TCP','node','vite dev server',18244,'127.0.0.1'],
+  [5173,'TCP','node','storybook',18302,'127.0.0.1'],
+  [5432,'TCP','com.docker.backend','postgres',4410,'0.0.0.0'],
+  [6379,'TCP','com.docker.backend','redis',4532,'0.0.0.0'],
+  [8080,'TCP','java','GradleDaemon',20918,'::'],
+  [8025,'TCP','com.docker.backend','mailpit',4610,'0.0.0.0'],
+  [11434,'TCP','ollama','',7720,'127.0.0.1'],
+  [5353,'UDP','svchost.exe','Dnscache',2216,'0.0.0.0'],
+  [1900,'UDP','svchost.exe','SSDPSRV',3380,'0.0.0.0'],
+];
+const pr = document.getElementById('port-rows');
+function renderPorts(proto) {
+  pr.innerHTML = ports.filter(p => !proto || p[1] === proto).map(p => `
+    <li class="row r-pt">
+      <span class="num" style="color:var(--accent)">${p[0]}</span>
+      <span class="t3 hide-m">${p[1]}</span>
+      <span class="cell"><span>${p[2]}</span>${p[3] ? `<span class="t3">${p[3]}</span>` : ''}</span>
+      <span class="t2 num right hide-m">${p[4]}</span>
+      <span class="t3 num hide-m trunc">${p[5]}</span>
+      <span class="actions"><button class="icon-btn danger" aria-label="Stop ${p[2]}" data-stop="${p[0]}|${p[2]}|${p[4]}"><svg class="i"><use href="#i-stop"/></svg></button></span>
+    </li>`).join('');
+}
+renderPorts('');
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderPorts(b.dataset.proto);
+});
+
+/* ---------- docker ---------- */
+// [name, image, state('up'|'off'|'unhealthy'), ports[], cpu%, memMB, memLimitMB, uptime]
+const projects = [
+  { name: 'shop-api', path: 'D:\\Projects\\shop-api\\compose.yaml', items: [
+    ['api', 'shop-api:dev', 'up', ['8000'], 1.8, 212, 2048, 'Up 2 hours'],
+    ['worker', 'shop-api:dev', 'unhealthy', [], 0.6, 148, 2048, 'Up 2 hours'],
+    ['postgres', 'postgres:16', 'up', ['5432'], 0.4, 96, 1024, 'Up 2 hours'],
+    ['redis', 'redis:7-alpine', 'up', ['6379'], 0.2, 12, 512, 'Up 2 hours'],
+  ]},
+  { name: 'Standalone', path: '', items: [
+    ['mailpit', 'axllent/mailpit:latest', 'up', ['8025', '1025'], 0.1, 24, 0, 'Up 3 days'],
+    ['minio', 'minio/minio:latest', 'off', [], 0, 0, 0, 'Exited (0) · 3 hours ago'],
+    ['ollama-webui', 'ghcr.io/open-webui/open-webui:main', 'off', [], 0, 0, 0, 'Exited (137) · yesterday'],
+  ]},
+];
+const fmtMem = mb => mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB';
+function ctrRow(c, gi, ci) {
+  const [n, img, st, ports, cpu, mem, lim, up] = c, on = st !== 'off';
+  const memPct = lim ? mem / lim * 100 : Math.min(mem / 20.48, 100);
+  return `
+  <li class="row r-dk ${on ? '' : 'stopped'}" data-g="${gi}" data-c="${ci}">
+    <span class="ctr"><i class="dot ${st}"></i><span class="cell"><span>${n}${st === 'unhealthy' ? '<span class="badge warn">unhealthy</span>' : ''}</span><span class="t3">${img}</span></span></span>
+    <span class="pchips hide-m">${ports.length ? ports.map(p => `<a class="pchip" href="#" title="Open localhost:${p}">:${p}<svg class="i"><use href="#i-ext"/></svg></a>`).join('') : '<span class="t3">—</span>'}</span>
+    <span class="meter hide-m">${on ? `<span class="num" data-cpu>${cpu.toFixed(1)}%</span><i style="--m:${Math.min(cpu * 10, 100)}%"></i>` : '<span class="t3">—</span>'}</span>
+    <span class="meter mem hide-m">${on ? `<span class="num">${fmtMem(mem)}</span><i style="--m:${memPct}%"></i>` : '<span class="t3">—</span>'}</span>
+    <span class="uptime hide-m trunc" title="${up}">${on ? up.replace('Up ', '') : up.split(' · ')[0]}</span>
+    <span class="actions">
+      <button class="icon-btn" aria-label="Logs for ${n}"><svg class="i"><use href="#i-file"/></svg></button>
+      ${on ? `<button class="icon-btn" aria-label="Open terminal in ${n}"><svg class="i"><use href="#i-term"/></svg></button>` : ''}
+      <button class="icon-btn ${on ? 'danger' : ''}" aria-label="${on ? 'Stop' : 'Start'} ${n}" data-dk="${on ? 'stop' : 'start'}"><svg class="i"><use href="#i-${on ? 'stop' : 'play'}"/></svg></button>
+    </span>
+  </li>`;
+}
+function renderDocker() {
+  document.getElementById('dk-containers').innerHTML =
+    `<div class="thead dk"><span>Container</span><span class="hide-m">Ports</span><span class="hide-m">CPU</span><span class="hide-m">Memory</span><span class="hide-m">Uptime</span><span></span></div>` +
+    projects.map((p, gi) => {
+      const running = p.items.filter(c => c[2] !== 'off').length;
+      return `
+      <div class="group">
+        <div class="g-head">
+          <div class="g-title"><h2>${p.name}</h2>${p.path ? `<span class="g-path hide-m">${p.path}</span>` : ''}<span class="g-count">${running} of ${p.items.length} running</span></div>
+          ${p.path ? `<div class="g-actions"><button class="btn ghost sm">Restart</button><button class="btn ghost sm" data-dk-group="${gi}">Stop all</button></div>` : ''}
+        </div>
+        <ul class="rows">${p.items.map((c, ci) => ctrRow(c, gi, ci)).join('')}</ul>
+      </div>`;
+    }).join('');
+}
+renderDocker();
+
+const images = [
+  ['shop-api', 'dev', 'a41f9c2e7b10', '412 MB', '2 hours ago', 2],
+  ['postgres', '16', '3b8e0d1f5c27', '438 MB', '3 weeks ago', 1],
+  ['redis', '7-alpine', '9d2c71ae4f03', '41 MB', '5 weeks ago', 1],
+  ['ghcr.io/open-webui/open-webui', 'main', 'e7a0b6c3d912', '4.1 GB', '2 months ago', 1],
+  ['minio/minio', 'latest', '1c5f8e29ab64', '161 MB', '2 months ago', 1],
+  ['axllent/mailpit', 'latest', '6f03d4b8c1e5', '29 MB', '3 months ago', 1],
+  ['node', '20-bookworm', 'b2e9a7f4d031', '1.1 GB', '4 months ago', 0],
+  ['<none>', '<none>', '8a71c3e05f2d', '398 MB', '4 months ago', 0],
+];
+document.getElementById('dk-images').innerHTML = `
+  <div class="thead" style="grid-template-columns: minmax(0,1.4fr) 120px 96px 110px 48px"><span>Repository</span><span class="hide-m">Image ID</span><span class="right">Size</span><span class="hide-m">Created</span><span></span></div>
+  <ul class="rows">${images.map(i => `
+    <li class="row r-img">
+      <span class="cell"><span>${i[0]}<span class="badge ${i[5] ? 'on' : ''}">${i[5] ? 'in use' : 'unused'}</span></span><span class="t3 num">${i[1]}</span></span>
+      <span class="t3 num hide-m">${i[2]}</span>
+      <span class="num right t2">${i[3]}</span>
+      <span class="t3 hide-m">${i[4]}</span>
+      <span class="actions">${i[5] ? '' : `<button class="icon-btn danger" aria-label="Remove image ${i[0]}"><svg class="i"><use href="#i-trash"/></svg></button>`}</span>
+    </li>`).join('')}</ul>
+  <div class="dk-foot"><span>2 unused images · 1.5 GB</span><button class="btn ghost sm" id="dk-prune">Remove unused images</button></div>`;
+
+const volumes = [
+  ['shop-api_pgdata', 'local', '1.2 GB', 'postgres'],
+  ['shop-api_redis', 'local', '38 MB', 'redis'],
+  ['minio_data', 'local', '1.6 GB', 'minio'],
+  ['open-webui', 'local', '214 MB', 'ollama-webui'],
+  ['7f3a9c1e0b…', 'local', '92 MB', ''],
+];
+document.getElementById('dk-volumes').innerHTML = `
+  <div class="thead" style="grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) 96px 48px"><span>Volume</span><span>Used by</span><span class="right">Size</span><span></span></div>
+  <ul class="rows">${volumes.map(v => `
+    <li class="row r-vol">
+      <span class="cell"><span class="num" style="font-size:14px">${v[0]}</span><span class="t3">${v[1]} driver</span></span>
+      <span class="${v[3] ? 't2' : 't3'} trunc">${v[3] || 'Not attached'}</span>
+      <span class="num right t2">${v[2]}</span>
+      <span class="actions">${v[3] ? '' : `<button class="icon-btn danger" aria-label="Remove volume ${v[0]}"><svg class="i"><use href="#i-trash"/></svg></button>`}</span>
+    </li>`).join('')}</ul>`;
+
+document.querySelectorAll('#dk-tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#dk-tabs button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  ['containers', 'images', 'volumes'].forEach(t => document.getElementById('dk-' + t).hidden = t !== b.dataset.tab);
+});
+setInterval(() => {
+  let total = 0;
+  document.querySelectorAll('#dk-containers [data-cpu]').forEach(s => {
+    const [gi, ci] = [s.closest('.row').dataset.g, s.closest('.row').dataset.c];
+    const base = projects[gi].items[ci][4], v = Math.max(0, base + (Math.random() - 0.5) * base * 0.8);
+    total += v; s.textContent = v.toFixed(1) + '%'; s.nextElementSibling.style.setProperty('--m', Math.min(v * 10, 100) + '%');
+  });
+  document.getElementById('dk-cpu').innerHTML = total.toFixed(1) + '<small>%</small>';
+}, 1600);
+
+const clean = [
+  ['vijideck\\target','Rust build output',8.2,true],
+  ['shop-web\\node_modules','npm dependencies',3.4,true],
+  ['old-landing\\node_modules','npm dependencies · untouched 9 months',2.1,true],
+  ['ml-sandbox\\.venv','Python virtual environment',1.8,false],
+  ['tauri-demo\\src-tauri\\target','Rust build output',3.1,false],
+  ['shop-api\\bin\\Debug','.NET build output',0.6,false],
+];
+const cr = document.getElementById('clean-rows');
+cr.innerHTML = clean.map((c, i) => `
+  <li class="row r-cl" role="checkbox" tabindex="0" aria-checked="${c[3]}" data-i="${i}">
+    <span class="box"><svg class="i"><use href="#i-check"/></svg></span>
+    <span class="cell"><span class="num" style="font-size:14px">${c[0]}</span><span class="t3">${c[1]}</span></span>
+    <span class="num right t2">${c[2].toFixed(1)} GB</span>
+  </li>`).join('');
+function selected() { return [...cr.children].filter(r => r.getAttribute('aria-checked') === 'true'); }
+function updateSel() { document.getElementById('sel-size').textContent = selected().reduce((s, r) => s + clean[r.dataset.i][2], 0).toFixed(1) + ' GB'; }
+cr.addEventListener('click', e => { const r = e.target.closest('.row'); if (r) { r.setAttribute('aria-checked', r.getAttribute('aria-checked') !== 'true'); updateSel(); } });
+cr.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.target.click(); } });
+updateSel();
+
+/* ---------- navigation ---------- */
+const navBtns = [...document.querySelectorAll('.nav button')];
+function go(view) {
+  navBtns.forEach(b => b.dataset.view === view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  const target = document.getElementById('v-' + view) || document.getElementById('v-placeholder');
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v === target));
+  const label = navBtns.find(b => b.dataset.view === view).lastChild.textContent;
+  document.getElementById('crumb').textContent = label;
+  document.getElementById('ph-title').textContent = label;
+  window.scrollTo({ top: 0 });
+}
+navBtns.forEach(b => b.onclick = () => go(b.dataset.view));
+document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+if (location.hash && navBtns.some(b => b.dataset.view === location.hash.slice(1))) go(location.hash.slice(1));
+
+/* ---------- confirmation ---------- */
+const scrim = document.getElementById('scrim');
+let pending = null;
+function confirmDlg(title, body, okLabel, onOk) {
+  document.getElementById('dlg-title').textContent = title;
+  document.getElementById('dlg-body').textContent = body;
+  document.getElementById('dlg-ok').textContent = okLabel;
+  pending = onOk; scrim.classList.add('on'); document.getElementById('dlg-cancel').focus();
+}
+function closeDlg() { scrim.classList.remove('on'); pending = null; }
+document.getElementById('dlg-cancel').onclick = closeDlg;
+document.getElementById('dlg-ok').onclick = () => { pending && pending(); closeDlg(); };
+scrim.addEventListener('click', e => { if (e.target === scrim) closeDlg(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDlg(); });
+pr.addEventListener('click', e => {
+  const b = e.target.closest('[data-stop]'); if (!b) return;
+  const [port, name, pid] = b.dataset.stop.split('|');
+  confirmDlg('Stop process?', `${name} (PID ${pid}) is listening on port ${port}. Its identity will be re-checked before it is terminated.`, 'Stop process', () => b.closest('.row').remove());
+});
+document.getElementById('v-docker').addEventListener('click', e => {
+  const b = e.target.closest('[data-dk], [data-dk-group], #dk-prune, [aria-label^="Remove "]');
+  if (!b) return;
+  e.preventDefault();
+  if (b.dataset.dk === 'start') return;
+  if (b.dataset.dk === 'stop') {
+    const r = b.closest('.row'), c = projects[r.dataset.g].items[r.dataset.c];
+    return confirmDlg(`Stop ${c[0]}?`, `The container will receive SIGTERM and be killed after 10 seconds. Its data volumes are kept.`, 'Stop container', () => { c[2] = 'off'; c[7] = 'Exited (0) · just now'; renderDocker(); });
+  }
+  if ('dkGroup' in b.dataset) {
+    const p = projects[b.dataset.dkGroup];
+    return confirmDlg(`Stop ${p.name}?`, `All ${p.items.length} containers in this Compose project will be stopped. Volumes and networks are kept.`, 'Stop all', () => { p.items.forEach(c => { c[2] = 'off'; c[7] = 'Exited (0) · just now'; }); renderDocker(); });
+  }
+  if (b.id === 'dk-prune') return confirmDlg('Remove unused images?', '2 images not used by any container will be deleted (1.5 GB). They can be pulled or rebuilt again.', 'Remove images', () => {});
+  confirmDlg(b.getAttribute('aria-label') + '?', 'This cannot be undone.', 'Remove', () => b.closest('.row').remove());
+});
+document.getElementById('clean-go').onclick = () => {
+  const n = selected().length; if (!n) return;
+  confirmDlg(`Move ${n} folders to the Recycle Bin?`, `${document.getElementById('sel-size').textContent} will be freed. Every path is validated against its project root first.`, 'Move to Recycle Bin', () => { selected().forEach(r => r.remove()); updateSel(); });
+};
+
+/* ---------- theme ---------- */
+const root = document.documentElement, tb = document.getElementById('theme');
+function syncTheme() { tb.querySelector('span').textContent = root.dataset.theme === 'dark' ? 'Light theme' : 'Dark theme'; }
+try { const t = localStorage.getItem('vd-v4-theme'); if (t) root.dataset.theme = t; } catch (e) {}
+syncTheme();
+tb.onclick = () => { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; syncTheme(); try { localStorage.setItem('vd-v4-theme', root.dataset.theme); } catch (e) {} };
+</script>
+</body>
+</html>

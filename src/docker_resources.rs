@@ -193,7 +193,7 @@ impl Resources {
             ),
         );
         if let Some(error) = &self.error {
-            ui.colored_label(RED, error);
+            ui.colored_label(DANGER, error);
         }
         ui.add_space(8.0);
         rule(ui);

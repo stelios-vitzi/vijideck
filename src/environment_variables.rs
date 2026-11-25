@@ -1,5 +1,5 @@
 use crate::environment_settings::{save, valid_name};
-use crate::ui::{AMBER, CYAN, LINE, MUTED, PANEL, SURFACE, rule};
+use crate::ui::{ACCENT, LINE, MUTED, PANEL, SURFACE, WARNING, rule};
 use eframe::egui::{self, RichText};
 
 #[derive(Default)]
@@ -110,7 +110,7 @@ impl Variables {
         });
         if let Some(message) = self.notice.clone() {
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(message).color(AMBER));
+                ui.label(RichText::new(message).color(WARNING));
                 if ui.small_button("Dismiss").clicked() {
                     self.notice = None;
                 }
@@ -210,8 +210,10 @@ impl Variables {
                 |ui| {
                     if let Some((name, value, scope)) = selected {
                         ui.add(
-                            egui::Label::new(RichText::new(&name).size(15.0).strong().color(CYAN))
-                                .wrap(),
+                            egui::Label::new(
+                                RichText::new(&name).size(15.0).strong().color(ACCENT),
+                            )
+                            .wrap(),
                         );
                         ui.horizontal(|ui| {
                             ui.label(
@@ -364,7 +366,7 @@ impl Variables {
                                 }
                             });
                         }
-                        if let Some(y) = drop_y { let clip = ui.clip_rect(); ui.painter().line_segment([egui::pos2(clip.left(), y), egui::pos2(clip.right() - 12.0, y)], egui::Stroke::new(2.0_f32, CYAN)); }
+                        if let Some(y) = drop_y { let clip = ui.clip_rect(); ui.painter().line_segment([egui::pos2(clip.left(), y), egui::pos2(clip.right() - 12.0, y)], egui::Stroke::new(2.0_f32, ACCENT)); }
                     });
                     if let Some(i) = remove { self.items.remove(i); self.dragging = None; }
                     if self.dragging.is_some() && ctx.input(|input| input.pointer.any_released()) {
@@ -378,12 +380,12 @@ impl Variables {
                 ui.label(RichText::new(if self.scope == 1 { "Saving requests administrator approval. Restart applications to receive changes." } else { "Restart applications to receive changes." }).size(12.0).color(MUTED));
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() { self.editing = false; self.dragging = None; }
-                    if ui.add_enabled(valid_name(&self.name), egui::Button::new("Save changes").fill(CYAN.gamma_multiply(0.2))).clicked() {
+                    if ui.add_enabled(valid_name(&self.name), egui::Button::new("Save changes").fill(ACCENT.gamma_multiply(0.2))).clicked() {
                         if self.list { self.value = join_list(&self.items); }
                         self.apply(Some(self.value.clone()), ctx);
                     }
                 });
-                if let Some(message) = &self.notice { ui.label(RichText::new(message).color(AMBER)); }
+                if let Some(message) = &self.notice { ui.label(RichText::new(message).color(WARNING)); }
             });
         }
         if self.deleting {
@@ -410,7 +412,7 @@ impl Variables {
                         }
                     });
                     if let Some(message) = &self.notice {
-                        ui.label(RichText::new(message).color(AMBER));
+                        ui.label(RichText::new(message).color(WARNING));
                     }
                 });
         }
@@ -489,7 +491,7 @@ fn drag_handle(ui: &mut egui::Ui) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::drag());
     let response = response.on_hover_cursor(egui::CursorIcon::Grab);
     let color = if response.hovered() || response.dragged() {
-        CYAN
+        ACCENT
     } else {
         MUTED
     };
@@ -516,7 +518,7 @@ fn remove_button(ui: &mut egui::Ui) -> egui::Response {
         egui::StrokeKind::Inside,
     );
     let c = rect.center();
-    let stroke = egui::Stroke::new(1.5_f32, if response.hovered() { CYAN } else { MUTED });
+    let stroke = egui::Stroke::new(1.5_f32, if response.hovered() { ACCENT } else { MUTED });
     painter.line_segment(
         [c + egui::vec2(-4.0, -4.0), c + egui::vec2(4.0, 4.0)],
         stroke,

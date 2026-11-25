@@ -67,6 +67,8 @@ pub struct Overview {
     hardware: Option<Hardware>,
     history: VecDeque<f32>,
     updated: Instant,
+    host: String,
+    os: String,
 }
 
 impl Overview {
@@ -169,6 +171,10 @@ impl Overview {
             hardware: None,
             history: VecDeque::new(),
             updated: Instant::now(),
+            host: System::host_name().unwrap_or_else(|| "This computer".into()),
+            os: System::long_os_version()
+                .or_else(System::name)
+                .unwrap_or_else(|| std::env::consts::OS.into()),
         }
     }
 
@@ -192,7 +198,7 @@ impl Overview {
         } else if self.updated.elapsed() > Duration::from_secs(5) {
             "Telemetry delayed"
         } else {
-            "Live monitoring / 1 second samples"
+            "Live · 1 second samples"
         }
     }
 
@@ -204,7 +210,7 @@ impl Overview {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgba_unmultiplied(11, 18, 24, 225))
+                    .fill(Color32::from_rgba_unmultiplied(6, 11, 20, 235))
                     .stroke(Stroke::new(1.0_f32, LINE))
                     .corner_radius(16)
                     .inner_margin(egui::Margin::same(10)),
@@ -251,12 +257,14 @@ impl Overview {
                     })
                     .unwrap_or([None; 3]);
                 ui.columns(3, |columns| {
-                    for ((ui, label), value) in
-                        columns.iter_mut().zip(["CPU", "RAM", "GPU"]).zip(values)
+                    for ((ui, (label, color)), value) in columns
+                        .iter_mut()
+                        .zip([("CPU", G_CPU), ("RAM", G_MEM), ("GPU", G_GPU)])
+                        .zip(values)
                     {
                         ui.vertical_centered(|ui| {
-                            ui.label(RichText::new(label).size(9.0).color(MUTED));
-                            Self::mini_gauge(ui, value);
+                            ui.label(RichText::new(label).size(10.0).color(MUTED));
+                            gauge_face(ui, 64.0, value, color);
                         });
                     }
                 });
@@ -275,35 +283,6 @@ impl Overview {
         action
     }
 
-    fn mini_gauge(ui: &mut egui::Ui, value: Option<f32>) {
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(62.0, 62.0), egui::Sense::hover());
-        let center = rect.center();
-        let radius = 24.0;
-        ui.painter()
-            .circle_stroke(center, radius, Stroke::new(4.0_f32, LINE));
-        if let Some(value) = value {
-            let value = value.clamp(0.0, 100.0);
-            let points: Vec<_> = (0..=48)
-                .map(|i| {
-                    center
-                        + egui::Vec2::angled(
-                            -std::f32::consts::FRAC_PI_2
-                                + i as f32 / 48.0 * std::f32::consts::TAU * value / 100.0,
-                        ) * radius
-                })
-                .collect();
-            ui.painter()
-                .add(egui::Shape::line(points, Stroke::new(4.0_f32, CYAN)));
-        }
-        ui.painter().text(
-            center,
-            egui::Align2::CENTER_CENTER,
-            value.map_or_else(|| "—".into(), |v| format!("{v:.0}%")),
-            egui::FontId::proportional(14.0),
-            TEXT,
-        );
-    }
-
     #[cfg(windows)]
     fn minimize_button(ui: &mut egui::Ui) -> egui::Response {
         Self::widget_button(ui, "Minimize to tray", 0)
@@ -319,7 +298,7 @@ impl Overview {
             Stroke::new(
                 1.0_f32,
                 if response.hovered() {
-                    CYAN.gamma_multiply(0.65)
+                    ACCENT.gamma_multiply(0.65)
                 } else {
                     LINE
                 },
@@ -327,7 +306,7 @@ impl Overview {
             egui::StrokeKind::Inside,
         );
         let center = rect.center();
-        let stroke = Stroke::new(1.6_f32, if response.hovered() { CYAN } else { TEXT });
+        let stroke = Stroke::new(1.6_f32, if response.hovered() { ACCENT } else { TEXT });
         match icon {
             0 => {
                 ui.painter().line_segment(
@@ -378,136 +357,258 @@ impl Overview {
         self.sample.is_some() && self.hardware.is_some() && self.history.len() >= 2
     }
 
-    pub fn show(&self, ctx: &egui::Context) {
-        egui::CentralPanel::default().frame(panel(BG, 28)).show(ctx, |ui| {
-            let scroll = egui::ScrollArea::vertical().id_salt("overview_scroll").auto_shrink([false, false]);
+    /// Draws the overview. Returns `true` when the user asks to free up space.
+    pub fn show(&self, ctx: &egui::Context) -> bool {
+        let mut open_cleanup = false;
+        let width = ctx.content_rect().width();
+        let side = (width * 0.04).clamp(16.0, 64.0) as i8;
+        let frame = egui::Frame::new().fill(BG).inner_margin(egui::Margin {
+            left: side,
+            right: side,
+            top: 8,
+            bottom: 0,
+        });
+        egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
+            let scroll = egui::ScrollArea::vertical()
+                .id_salt("overview_scroll")
+                .auto_shrink([false, false]);
             #[cfg(feature = "ui-preview")]
-            let scroll = if std::env::var("VIJIDECK_PREVIEW_VIEW").as_deref() == Ok("overview-hardware") {
-                scroll.vertical_scroll_offset(660.0)
-            } else { scroll };
+            let scroll = if std::env::var("VIJIDECK_PREVIEW_VIEW").as_deref()
+                == Ok("overview-hardware")
+            {
+                scroll.vertical_scroll_offset(1040.0)
+            } else {
+                scroll
+            };
             scroll.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.heading("System overview");
-                        caption(ui, &format!("{}  /  {}  /  {}", System::host_name().unwrap_or_else(|| "This computer".into()), System::long_os_version().unwrap_or_else(|| std::env::consts::OS.into()), System::cpu_arch()));
-                    });
-                });
-                ui.add_space(22.0);
+                ui.add_space(40.0);
                 let Some(s) = &self.sample else {
-                    ui.spinner();
-                    ui.label("Reading processor, memory, storage, and network activity…");
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(120.0);
+                        ui.spinner();
+                        caption(
+                            ui,
+                            "Reading processor, memory, storage, and network activity…",
+                        );
+                    });
                     return;
                 };
-                ui.columns(3, |cols| {
-                    gauge(&mut cols[0], "Processor", Some(s.cpu), CYAN, "Total CPU utilization", &format!("{} logical processors", s.threads.len()));
-                    gauge(&mut cols[1], "Memory", percent(s.memory, s.total_memory), CYAN, &format!("{} in use", bytes(s.memory)), &format!("{} usable memory", bytes(s.total_memory)));
-                    if show_gpu(s.gpu, self.hardware.as_ref()) {
-                        let card = self.hardware.as_ref().and_then(|h| h.gpu_card.as_ref());
-                        let model = card.map(|(model, _)| model.as_str()).unwrap_or(if self.hardware.is_none() { "Reading GPU model…" } else { "GPU model unavailable" });
-                        let capacity = card.map(|(_, capacity)| capacity.as_str()).unwrap_or("Capacity unavailable");
-                        gauge(&mut cols[2], "GPU", s.gpu, CYAN, model, capacity);
-                    } else {
-                        let total: u64 = s.disks.iter().map(|d| d.total).sum();
-                        let free: u64 = s.disks.iter().map(|d| d.free).sum();
-                        gauge(&mut cols[2], "Storage", percent(total.saturating_sub(free), total), AMBER, &format!("{} free", bytes(free)), &format!("{} across {} volumes", bytes(total), s.disks.len()));
-                    }
-                });
-                ui.add_space(18.0);
-                ui.horizontal_wrapped(|ui| {
-                    badge(ui, &format!("Uptime {}d {}h {}m", s.uptime / 86400, s.uptime / 3600 % 24, s.uptime / 60 % 60), MUTED);
-                    badge(ui, &format!("Swap {} / {}", bytes(s.swap), bytes(s.total_swap)), MUTED);
-                    for (label, temperature) in &s.temperatures {
-                        badge(ui, &format!("{label}  {temperature:.0} °C"), AMBER);
-                    }
-                });
-                ui.add_space(24.0);
-                if ui.available_width() >= 1000.0 {
-                    ui.columns(2, |cols| {
-                        self.processor(&mut cols[0], s);
-                        self.storage(&mut cols[1], s);
+                self.gauges(ui, s);
+                ui.add_space(40.0);
+                insight(ui, s);
+                ui.add_space(72.0);
+                let wide = ui.available_width() >= 900.0;
+                if wide {
+                    let gap = (ui.available_width() * 0.06).clamp(32.0, 96.0);
+                    let left = (ui.available_width() - gap) * 1.45 / 2.45;
+                    let right = ui.available_width() - gap - left;
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(left, 0.0),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                ui.set_width(left);
+                                self.machine(ui, s);
+                            },
+                        );
+                        ui.add_space(gap);
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(right, 0.0),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                ui.set_width(right);
+                                open_cleanup |= drives(ui, s);
+                            },
+                        );
                     });
                 } else {
-                    self.processor(ui, s);
-                    ui.add_space(18.0);
-                    self.storage(ui, s);
+                    self.machine(ui, s);
+                    ui.add_space(56.0);
+                    open_cleanup |= drives(ui, s);
                 }
+                ui.add_space(72.0);
+                self.processor(ui, s);
+                ui.add_space(64.0);
+                self.inventory(ui);
+                ui.add_space(64.0);
+                networks(ui, s);
                 ui.add_space(24.0);
-                section(ui, "Hardware inventory");
-                caption(ui, "Device details reported by this computer");
-                ui.add_space(12.0);
-                if let Some(hardware) = &self.hardware {
-                    if hardware.sections.is_empty() {
-                        caption(ui, "Additional device details unavailable.");
-                    }
-                    if ui.available_width() >= 640.0 {
-                        for pair in hardware.sections.chunks(2) {
-                            ui.columns(2, |cols| {
-                                for (col, (title, value)) in cols.iter_mut().zip(pair) {
-                                    inventory_card(col, title, value, hardware.memory_summary.as_deref());
-                                }
-                            });
-                            ui.add_space(8.0);
-                        }
-                    } else {
-                        for (title, value) in &hardware.sections {
-                            inventory_card(ui, title, value, hardware.memory_summary.as_deref());
-                            ui.add_space(8.0);
-                        }
-                    }
-                    if let Some(note) = &hardware.note {
-                        ui.add_space(4.0);
-                        caption(ui, note);
-                    }
-                } else {
-                    ui.horizontal(|ui| { ui.spinner(); caption(ui, "Reading graphics, motherboard, memory modules, and connected devices…"); });
-                }
-                ui.add_space(24.0);
-                section(ui, "Network interfaces");
-                caption(ui, "Receive / send rates include virtual and loopback interfaces; they are not internet speed tests.");
-                ui.add_space(10.0);
-                if s.networks.is_empty() { caption(ui, "No network interfaces reported."); }
-                for (name, address, received, sent) in &s.networks {
-                    panel(PANEL, 14).stroke(Stroke::new(1.0_f32, LINE)).corner_radius(5).show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
-                        ui.add(egui::Label::new(RichText::new(name).size(14.0).strong()).wrap().selectable(true));
-                        ui.add(egui::Label::new(RichText::new(address).size(12.0).color(MUTED)).wrap().selectable(true));
-                        ui.add_space(6.0);
-                        ui.horizontal_wrapped(|ui| {
-                            badge(ui, &format!("RECEIVE  {}/s", bytes(*received as u64)), CYAN);
-                            badge(ui, &format!("SEND  {}/s", bytes(*sent as u64)), CYAN);
-                        });
-                    });
-                    ui.add_space(8.0);
-                }
-                ui.add_space(10.0);
-                caption(ui, "Unavailable sensors and device details depend on operating system and driver support.");
+                caption(
+                    ui,
+                    "Unavailable sensors and device details depend on operating system and driver support.",
+                );
+                ui.add_space(40.0);
             });
+        });
+        open_cleanup
+    }
+
+    fn gauges(&self, ui: &mut egui::Ui, s: &Sample) {
+        let card = self.hardware.as_ref().and_then(|h| h.gpu_card.as_ref());
+        let mut items = vec![
+            (
+                "CPU",
+                Some(s.cpu),
+                G_CPU,
+                format!(
+                    "{} cores · {}",
+                    s.cores.unwrap_or(s.threads.len()),
+                    if s.frequency == 0 {
+                        "frequency n/a".to_owned()
+                    } else {
+                        format!("{:.1} GHz", s.frequency as f64 / 1000.0)
+                    }
+                ),
+                format!("{} · {} logical processors", s.processor, s.threads.len()),
+            ),
+            (
+                "Memory",
+                percent(s.memory, s.total_memory),
+                G_MEM,
+                format!("{} / {}", gib(s.memory), bytes(s.total_memory)),
+                format!("{} in use of {}", bytes(s.memory), bytes(s.total_memory)),
+            ),
+        ];
+        if show_gpu(s.gpu, self.hardware.as_ref()) {
+            let model = card.map_or_else(
+                || {
+                    if self.hardware.is_none() {
+                        "Reading GPU model…".to_owned()
+                    } else {
+                        "GPU model unavailable".to_owned()
+                    }
+                },
+                |(model, _)| model.clone(),
+            );
+            let detail = card
+                .map(|(_, capacity)| capacity.as_str())
+                .filter(|capacity| !capacity.contains("unavailable"))
+                .map_or_else(|| "Utilization".to_owned(), |c| format!("{c} VRAM"));
+            items.push(("GPU", s.gpu, G_GPU, detail, model));
+        }
+        let available = ui.available_width();
+        let count = items.len() as f32;
+        let gap = (available * 0.04).clamp(12.0, 64.0);
+        let column = ((available - gap * (count - 1.0)) / count).max(80.0);
+        let size = column.min(280.0);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for (title, value, color, detail, hover) in items {
+                ui.allocate_ui_with_layout(
+                    egui::vec2(column, size + 60.0),
+                    egui::Layout::top_down(egui::Align::Center),
+                    |ui| {
+                        ui.set_width(column);
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                        gauge_face(ui, size, value, color);
+                        gauge_title(ui, title, gauge_color(value, color));
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(detail).monospace().size(13.0).color(MUTED),
+                            )
+                            .truncate(),
+                        )
+                        .on_hover_text(hover);
+                    },
+                );
+            }
+        });
+    }
+
+    fn machine(&self, ui: &mut egui::Ui, s: &Sample) {
+        eyebrow(ui, "This machine");
+        ui.add_space(6.0);
+        let hardware = self.hardware.as_ref();
+        let section = |name: &str| {
+            hardware.and_then(|h| {
+                h.sections
+                    .iter()
+                    .find(|(title, _)| title == name)
+                    .map(|(_, value)| value.as_str())
+                    .filter(|value| {
+                        !value.is_empty() && *value != "Unavailable" && *value != "Not reported"
+                    })
+            })
+        };
+        let first = |value: &str| {
+            value
+                .split(" / ")
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_owned()
+        };
+        let graphics = hardware
+            .and_then(|h| h.gpu_card.as_ref())
+            .map(|(model, capacity)| (model.clone(), format!(" · {capacity}")))
+            .or_else(|| section("Graphics").map(|g| (first(g), String::new())));
+        let mut rows: Vec<(&str, String, String)> = vec![
+            ("Name", self.host.clone(), String::new()),
+            (
+                "System",
+                self.os.clone(),
+                format!(" · {}", System::cpu_arch()),
+            ),
+            (
+                "Processor",
+                s.processor.clone(),
+                format!(
+                    " · {} cores · {} threads",
+                    s.cores.map_or_else(|| "unknown".into(), |n| n.to_string()),
+                    s.threads.len()
+                ),
+            ),
+        ];
+        if let Some((model, tail)) = graphics {
+            rows.push(("Graphics", model, tail));
+        }
+        rows.push((
+            "Memory",
+            bytes(s.total_memory),
+            hardware
+                .and_then(|h| h.memory_summary.as_deref())
+                .map(|summary| {
+                    summary
+                        .split(" / ")
+                        .filter(|part| !part.contains("installed") && !part.contains("unavailable"))
+                        .fold(String::new(), |acc, part| acc + " · " + part)
+                })
+                .unwrap_or_default(),
+        ));
+        if let Some(board) = section("Motherboard") {
+            rows.push(("Board", first(board), String::new()));
+        }
+        if let Some((name, ip)) = primary_network(s) {
+            rows.push(("Network", name, format!(" · {ip}")));
+        }
+        rows.push(("Uptime", uptime(s.uptime), String::new()));
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            for (index, (label, value, tail)) in rows.into_iter().enumerate() {
+                spec_row(ui, index == 0, label, |ui| {
+                    let mut job = egui::text::LayoutJob::default();
+                    job.append(
+                        &value,
+                        0.0,
+                        egui::TextFormat::simple(egui::FontId::proportional(14.0), TEXT),
+                    );
+                    job.append(
+                        &tail,
+                        0.0,
+                        egui::TextFormat::simple(egui::FontId::proportional(14.0), MUTED),
+                    );
+                    ui.add(egui::Label::new(job).wrap().selectable(true));
+                });
+            }
         });
     }
 
     fn processor(&self, ui: &mut egui::Ui, s: &Sample) {
-        section(ui, "Processor activity");
-        ui.add(
-            egui::Label::new(RichText::new(&s.processor).size(16.0))
-                .wrap()
-                .selectable(true),
-        );
-        caption(
-            ui,
-            &format!(
-                "{} physical cores / {} threads / {}",
-                s.cores.map_or_else(|| "Unknown".into(), |n| n.to_string()),
-                s.threads.len(),
-                if s.frequency == 0 {
-                    "Frequency unavailable".into()
-                } else {
-                    format!("{:.2} GHz reported", s.frequency as f64 / 1000.0)
-                }
-            ),
-        );
-        ui.add_space(8.0);
+        eyebrow(ui, "Processor activity");
+        ui.add_space(14.0);
         let (rect, _) =
-            ui.allocate_exact_size(egui::vec2(ui.available_width(), 65.0), egui::Sense::hover());
+            ui.allocate_exact_size(egui::vec2(ui.available_width(), 72.0), egui::Sense::hover());
         let p = ui.painter();
         for fraction in [0.0, 0.5, 1.0] {
             let y = rect.bottom() - rect.height() * fraction;
@@ -525,16 +626,21 @@ impl Overview {
             })
             .collect();
         if points.len() > 1 {
-            p.add(egui::Shape::line(points, Stroke::new(1.5_f32, CYAN)));
+            p.add(egui::Shape::line(
+                points.clone(),
+                Stroke::new(5.0_f32, G_CPU.gamma_multiply(0.1)),
+            ));
+            p.add(egui::Shape::line(points, Stroke::new(1.5_f32, G_CPU)));
         }
-        caption(ui, "CPU history / up to 60 samples / 0–100%");
-        ui.add_space(8.0);
+        ui.add_space(6.0);
+        caption(ui, "CPU history · last 60 seconds · 0–100%");
+        ui.add_space(14.0);
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
             for (i, usage) in s.threads.iter().enumerate() {
                 let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(14.0, 26.0), egui::Sense::hover());
-                ui.painter().rect_filled(rect, 2.0, SURFACE);
+                    ui.allocate_exact_size(egui::vec2(10.0, 28.0), egui::Sense::hover());
+                ui.painter().rect_filled(rect, 2.0, TRACK);
                 let fill = egui::Rect::from_min_max(
                     egui::pos2(
                         rect.left(),
@@ -542,111 +648,379 @@ impl Overview {
                     ),
                     rect.right_bottom(),
                 );
-                ui.painter().rect_filled(fill, 2.0, CYAN);
+                ui.painter()
+                    .rect_filled(fill, 2.0, gauge_color(Some(*usage), G_CPU));
                 response.on_hover_text(format!("Logical processor {}: {:.1}%", i + 1, usage));
             }
         });
+        if !s.temperatures.is_empty() || s.total_swap > 0 {
+            ui.add_space(14.0);
+            ui.horizontal_wrapped(|ui| {
+                badge(
+                    ui,
+                    &format!("Swap {} / {}", bytes(s.swap), bytes(s.total_swap)),
+                    MUTED,
+                );
+                for (label, temperature) in &s.temperatures {
+                    badge(ui, &format!("{label}  {temperature:.0} °C"), MUTED);
+                }
+            });
+        }
     }
 
-    fn storage(&self, ui: &mut egui::Ui, s: &Sample) {
-        section(ui, "Mounted storage");
-        if s.disks.is_empty() {
-            caption(ui, "No mounted volumes reported.");
-        }
-        for disk in &s.disks {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(&disk.mount).strong());
+    fn inventory(&self, ui: &mut egui::Ui) {
+        eyebrow(ui, "Hardware inventory");
+        ui.add_space(6.0);
+        let Some(hardware) = &self.hardware else {
+            ui.horizontal(|ui| {
+                ui.spinner();
                 caption(
                     ui,
-                    &format!("{} / {} / {}", disk.name, disk.kind, disk.filesystem),
+                    "Reading graphics, motherboard, memory modules, and connected devices…",
                 );
             });
-            ui.add(
-                egui::ProgressBar::new(
-                    percent(disk.total.saturating_sub(disk.free), disk.total).unwrap_or(0.0)
-                        / 100.0,
-                )
-                .fill(AMBER)
-                .desired_height(5.0),
-            );
-            caption(
-                ui,
-                &format!("{} free of {}", bytes(disk.free), bytes(disk.total)),
-            );
-            ui.add_space(8.0);
+            return;
+        };
+        if hardware.sections.is_empty() {
+            caption(ui, "Additional device details unavailable.");
+        }
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            for (index, (title, value)) in hardware.sections.iter().enumerate() {
+                spec_row(ui, index == 0, title, |ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    if title == "Memory modules"
+                        && let Some(summary) = &hardware.memory_summary
+                    {
+                        ui.label(RichText::new(summary.replace(" / ", " · ")).color(TEXT_2));
+                        ui.add_space(4.0);
+                    }
+                    for item in value.split("; ").filter(|item| !item.trim().is_empty()) {
+                        let mut parts = item
+                            .split(" / ")
+                            .map(str::trim)
+                            .filter(|part| !part.is_empty());
+                        let Some(primary) = parts.next() else {
+                            continue;
+                        };
+                        let mut job = egui::text::LayoutJob::default();
+                        job.append(
+                            primary,
+                            0.0,
+                            egui::TextFormat::simple(egui::FontId::proportional(14.0), TEXT),
+                        );
+                        for detail in parts {
+                            job.append(
+                                &format!(" · {detail}"),
+                                0.0,
+                                egui::TextFormat::simple(egui::FontId::proportional(14.0), MUTED),
+                            );
+                        }
+                        ui.add(egui::Label::new(job).wrap().selectable(true));
+                    }
+                });
+            }
+        });
+        if let Some(note) = &hardware.note {
+            ui.add_space(12.0);
+            caption(ui, note);
         }
     }
 }
 
-fn inventory_card(ui: &mut egui::Ui, title: &str, value: &str, memory_summary: Option<&str>) {
-    panel(PANEL, 14)
-        .stroke(Stroke::new(1.0_f32, LINE))
-        .corner_radius(5)
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.label(RichText::new(title.to_uppercase()).size(11.0).color(CYAN));
-            ui.add_space(6.0);
-            if title == "Memory modules" {
-                ui.horizontal_wrapped(|ui| {
-                    for detail in memory_summary
-                        .unwrap_or("Kit details unavailable / CL unavailable")
-                        .split(" / ")
-                    {
-                        badge(ui, detail, CYAN);
-                    }
-                });
-                ui.add_space(10.0);
-                caption(ui, "MODULES");
-                ui.add_space(4.0);
-            }
-            let items: Vec<_> = value
-                .split("; ")
-                .filter(|item| !item.trim().is_empty())
-                .collect();
-            let multiple = items.len() > 1;
-            for (index, item) in items.iter().enumerate() {
-                if index > 0 {
-                    ui.add_space(8.0);
-                    rule(ui);
-                    ui.add_space(8.0);
-                }
-                let mut parts = item
-                    .split(" / ")
-                    .map(str::trim)
-                    .filter(|part| !part.is_empty());
-                if let Some(primary) = parts.next() {
-                    ui.horizontal_top(|ui| {
-                        if multiple {
-                            ui.label(RichText::new("•").color(CYAN));
-                        }
-                        ui.vertical(|ui| {
-                            ui.add(
-                                egui::Label::new(RichText::new(primary).size(13.0).strong())
-                                    .wrap()
-                                    .selectable(true),
-                            );
-                            for detail in parts {
-                                ui.add(
-                                    egui::Label::new(RichText::new(detail).size(12.0).color(MUTED))
-                                        .wrap()
-                                        .selectable(true),
-                                );
-                            }
-                        });
-                    });
-                }
-            }
-        });
+/// Gauge label with a small coloured dot, centred in its column.
+fn gauge_title(ui: &mut egui::Ui, title: &str, color: Color32) {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(title.to_owned(), medium(15.0), TEXT);
+    let size = galley.size() + egui::vec2(13.0, 0.0);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().circle_filled(rect.left_center(), 2.5, color);
+    ui.painter()
+        .galley(rect.left_top() + egui::vec2(13.0, 0.0), galley, TEXT);
 }
 
-fn section(ui: &mut egui::Ui, title: &str) {
-    rule(ui);
-    ui.add_space(10.0);
-    ui.label(RichText::new(title).size(18.0));
-    ui.add_space(6.0);
+fn spec_row(ui: &mut egui::Ui, first: bool, label: &str, contents: impl FnOnce(&mut egui::Ui)) {
+    if !first {
+        rule(ui);
+    }
+    ui.add_space(11.0);
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 16.0;
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(112.0, 19.0), egui::Sense::hover());
+        ui.painter().text(
+            rect.left_center(),
+            egui::Align2::LEFT_CENTER,
+            label,
+            egui::FontId::proportional(13.0),
+            MUTED,
+        );
+        ui.vertical(|ui| {
+            ui.set_width(ui.available_width());
+            contents(ui);
+        });
+    });
+    ui.add_space(11.0);
 }
+
+/// The status sentence under the gauges. Disk pressure lives here rather than
+/// in a gauge of its own.
+fn insight(ui: &mut egui::Ui, s: &Sample) {
+    let disks: Vec<_> = s
+        .disks
+        .iter()
+        .filter_map(|d| {
+            percent(d.total.saturating_sub(d.free), d.total).map(|p| (drive_label(&d.mount), p))
+        })
+        .collect();
+    let segments = insight_segments(Some(s.cpu), percent(s.memory, s.total_memory), &disks);
+    let mut job = egui::text::LayoutJob::default();
+    for (text, emphasis) in &segments {
+        job.append(
+            text,
+            0.0,
+            egui::TextFormat::simple(light(23.0), if *emphasis { WARNING } else { TEXT }),
+        );
+    }
+    job.halign = egui::Align::Center;
+    job.wrap.max_width = ui.available_width().min(680.0);
+    ui.vertical_centered(|ui| {
+        ui.add(egui::Label::new(job).wrap());
+        let free: u64 = s.disks.iter().map(|d| d.free).sum();
+        let subline = if s.disks.is_empty() {
+            "No mounted volumes reported.".to_owned()
+        } else {
+            format!(
+                "{} free across {} {}.",
+                bytes(free),
+                s.disks.len(),
+                if s.disks.len() == 1 {
+                    "drive"
+                } else {
+                    "drives"
+                }
+            )
+        };
+        ui.add_space(2.0);
+        ui.label(RichText::new(subline).size(14.0).color(MUTED));
+    });
+}
+
+/// Builds the insight sentence as `(text, emphasised)` segments.
+fn insight_segments(
+    cpu: Option<f32>,
+    memory: Option<f32>,
+    disks: &[(String, f32)],
+) -> Vec<(String, bool)> {
+    const HIGH: f32 = 80.0;
+    let mut hot: Vec<(String, f32)> = [("CPU", cpu), ("Memory", memory)]
+        .into_iter()
+        .filter_map(|(name, value)| value.filter(|v| *v >= HIGH).map(|v| (name.to_owned(), v)))
+        .collect();
+    let compute_steady = hot.is_empty();
+    if let Some((name, value)) = disks
+        .iter()
+        .filter(|(_, value)| *value >= HIGH)
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+    {
+        hot.push((format!("Disk {name}"), *value));
+    }
+    let mut segments = Vec::new();
+    if hot.is_empty() {
+        segments.push(("Everything is steady.".to_owned(), false));
+        return segments;
+    }
+    if compute_steady {
+        segments.push(("Everything is steady. ".to_owned(), false));
+    }
+    let count = hot.len();
+    for (index, (name, value)) in hot.into_iter().enumerate() {
+        segments.push((format!("{name} is "), false));
+        segments.push(("running high".to_owned(), true));
+        let gap = if index + 1 < count { " " } else { "" };
+        segments.push((format!(" at {value:.0}%.{gap}"), false));
+    }
+    segments
+}
+
+fn drive_label(mount: &str) -> String {
+    let trimmed = mount.trim_end_matches(['\\', '/']);
+    if trimmed.is_empty() {
+        mount.to_owned()
+    } else {
+        trimmed.to_owned()
+    }
+}
+
+/// Drive list. Returns `true` when "Free up space" is clicked.
+fn drives(ui: &mut egui::Ui, s: &Sample) -> bool {
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        eyebrow(ui, "Drives");
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let link = ui.add(
+                egui::Label::new(
+                    RichText::new("Free up space →")
+                        .font(medium(13.0))
+                        .color(ACCENT),
+                )
+                .sense(egui::Sense::click()),
+            );
+            if link.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            clicked = link.on_hover_text("Open disk cleanup").clicked();
+        });
+    });
+    ui.add_space(12.0);
+    if s.disks.is_empty() {
+        caption(ui, "No mounted volumes reported.");
+    }
+    for (index, disk) in s.disks.iter().enumerate() {
+        if index > 0 {
+            ui.add_space(24.0);
+        }
+        let used = disk.total.saturating_sub(disk.free);
+        let fraction = percent(used, disk.total).unwrap_or(0.0);
+        let color = gauge_color(Some(fraction), ACCENT);
+        ui.horizontal(|ui| {
+            let mut job = egui::text::LayoutJob::default();
+            job.append(
+                &drive_label(&disk.mount),
+                0.0,
+                egui::TextFormat::simple(egui::FontId::monospace(14.0), TEXT),
+            );
+            if !disk.name.is_empty() {
+                job.append(
+                    &disk.name,
+                    8.0,
+                    egui::TextFormat::simple(egui::FontId::proportional(14.0), TEXT_2),
+                );
+            }
+            ui.add(egui::Label::new(job).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    RichText::new(format!("{} / {}", gib(used), bytes(disk.total)))
+                        .monospace()
+                        .size(13.0)
+                        .color(TEXT_2),
+                );
+            });
+        });
+        ui.add_space(2.0);
+        thin_bar(ui, fraction / 100.0, color);
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("{} · {}", disk_kind(&disk.kind), disk.filesystem))
+                        .size(13.0)
+                        .color(MUTED),
+                )
+                .truncate(),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    RichText::new(format!("{} free", bytes(disk.free)))
+                        .monospace()
+                        .size(13.0)
+                        .color(MUTED),
+                );
+            });
+        });
+    }
+    clicked
+}
+
+fn disk_kind(kind: &str) -> &str {
+    match kind {
+        "SSD" => "SSD",
+        "HDD" => "HDD",
+        _ => "Drive",
+    }
+}
+
+fn networks(ui: &mut egui::Ui, s: &Sample) {
+    eyebrow(ui, "Network interfaces");
+    ui.add_space(2.0);
+    caption(
+        ui,
+        "Receive / send rates include virtual and loopback interfaces; they are not internet speed tests.",
+    );
+    ui.add_space(6.0);
+    if s.networks.is_empty() {
+        caption(ui, "No network interfaces reported.");
+    }
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        for (index, (name, address, received, sent)) in s.networks.iter().enumerate() {
+            if index > 0 {
+                rule(ui);
+            }
+            ui.add_space(10.0);
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width((ui.available_width() - 220.0).max(160.0));
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.add(egui::Label::new(RichText::new(name).size(14.0)).truncate());
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(address).monospace().size(12.0).color(MUTED),
+                        )
+                        .wrap()
+                        .selectable(true),
+                    );
+                });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.label(
+                        RichText::new(format!("↑ {}/s", bytes(*sent as u64)))
+                            .monospace()
+                            .size(13.0)
+                            .color(TEXT_2),
+                    );
+                    ui.label(
+                        RichText::new(format!("↓ {}/s", bytes(*received as u64)))
+                            .monospace()
+                            .size(13.0)
+                            .color(TEXT_2),
+                    );
+                });
+            });
+            ui.add_space(10.0);
+        }
+    });
+}
+
+/// The busiest interface that has a routable IPv4 address.
+fn primary_network(s: &Sample) -> Option<(String, String)> {
+    s.networks
+        .iter()
+        .filter_map(|(name, address, received, sent)| {
+            let ip = address.split([' ', ',']).find(|part| {
+                part.contains('.') && !part.starts_with("127.") && !part.starts_with("169.254.")
+            })?;
+            let ip = ip.split('/').next().unwrap_or(ip).to_owned();
+            Some((name.clone(), ip, received + sent))
+        })
+        .max_by(|a, b| a.2.total_cmp(&b.2))
+        .map(|(name, ip, _)| (name, ip))
+}
+
+fn uptime(seconds: u64) -> String {
+    format!(
+        "{}d {}h {}m",
+        seconds / 86_400,
+        seconds / 3_600 % 24,
+        seconds / 60 % 60
+    )
+}
+
 fn percent(used: u64, total: u64) -> Option<f32> {
     (total > 0).then(|| (used as f64 / total as f64 * 100.0).clamp(0.0, 100.0) as f32)
+}
+/// Plain GiB number without unit, for "used / total" pairs.
+fn gib(value: u64) -> String {
+    format!("{:.1}", value as f64 / (1u64 << 30) as f64)
 }
 fn bytes(value: u64) -> String {
     if value >= 1 << 40 {
@@ -660,78 +1034,6 @@ fn bytes(value: u64) -> String {
     } else {
         format!("{value} B")
     }
-}
-fn gauge(
-    ui: &mut egui::Ui,
-    title: &str,
-    usage: Option<f32>,
-    color: Color32,
-    detail: &str,
-    subtitle: &str,
-) {
-    panel(PANEL, 16)
-        .stroke(Stroke::new(1.0_f32, LINE))
-        .corner_radius(5)
-        .show(ui, |ui| {
-            ui.set_min_width((ui.available_width()).max(0.0));
-            ui.label(RichText::new(title).size(16.0));
-            let size = ui.available_width().clamp(100.0, 165.0);
-            ui.vertical_centered(|ui| {
-                let (rect, _) =
-                    ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
-                let center = rect.center();
-                let radius = size * 0.41;
-                ui.painter()
-                    .circle_stroke(center, radius, Stroke::new(7.0_f32, LINE));
-                if let Some(value) = usage {
-                    let points: Vec<_> = (0..=100)
-                        .map(|i| {
-                            center
-                                + egui::Vec2::angled(
-                                    -std::f32::consts::FRAC_PI_2
-                                        + i as f32 / 100.0 * std::f32::consts::TAU * value / 100.0,
-                                ) * radius
-                        })
-                        .collect();
-                    ui.painter()
-                        .add(egui::Shape::line(points, Stroke::new(7.0_f32, color)));
-                }
-                ui.painter().text(
-                    center,
-                    egui::Align2::CENTER_CENTER,
-                    usage.map_or_else(|| "—".into(), |v| format!("{v:.0}%")),
-                    egui::FontId::proportional(36.0),
-                    TEXT,
-                );
-            });
-            ui.label(RichText::new(detail).size(14.0));
-            caption(ui, subtitle);
-        });
-}
-
-pub fn rail_icon(ui: &mut egui::Ui, selected: bool) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(egui::Vec2::splat(44.0), egui::Sense::click());
-    let active = selected || response.hovered() || response.has_focus();
-    let p = ui.painter();
-    p.rect_filled(rect, 5.0, if active { SURFACE } else { PANEL });
-    if selected {
-        p.line_segment(
-            [
-                rect.left_top() + egui::vec2(0.0, 9.0),
-                rect.left_bottom() - egui::vec2(0.0, 9.0),
-            ],
-            Stroke::new(2.0_f32, CYAN),
-        );
-    }
-    for (x, y) in [(-9.0, -9.0), (2.0, -9.0), (-9.0, 2.0), (2.0, 2.0)] {
-        p.rect_stroke(
-            egui::Rect::from_min_size(rect.center() + egui::vec2(x, y), egui::vec2(7.0, 7.0)),
-            1.0,
-            Stroke::new(1.3_f32, if active { CYAN } else { MUTED }),
-            egui::StrokeKind::Inside,
-        );
-    }
-    response.on_hover_text("System overview")
 }
 
 #[cfg(windows)]
@@ -803,11 +1105,21 @@ Report 'Pointing devices' 'Win32_PointingDevice' { $_.Name }
 "#;
     let result = (|| -> Result<String, String> {
         let mut command = Command::new("powershell.exe");
-        command.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script]);
-        let output = crate::command::capture(command, crate::command::Limits {
-            timeout: Duration::from_secs(25),
-            output_bytes: 4 * 1024 * 1024,
-        }).map_err(|error| format!("Hardware inventory could not be read: {error}"))?;
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            script,
+        ]);
+        let output = crate::command::capture(
+            command,
+            crate::command::Limits {
+                timeout: Duration::from_secs(25),
+                output_bytes: 4 * 1024 * 1024,
+            },
+        )
+        .map_err(|error| format!("Hardware inventory could not be read: {error}"))?;
         let status = output.status;
         if !status.success() {
             return Err("Windows hardware inventory could not be read.".into());
@@ -901,5 +1213,47 @@ mod tests {
             show_gpu(Some(12.0), Some(&failed)),
             "counters work without inventory"
         );
+    }
+
+    fn sentence(segments: &[(String, bool)]) -> String {
+        segments.iter().map(|(text, _)| text.as_str()).collect()
+    }
+
+    #[test]
+    fn insight_reports_steady_system() {
+        let segments = insight_segments(Some(23.0), Some(57.0), &[("C:".into(), 41.0)]);
+        assert_eq!(sentence(&segments), "Everything is steady.");
+        assert!(segments.iter().all(|(_, emphasis)| !emphasis));
+    }
+
+    #[test]
+    fn insight_names_the_fullest_high_disk() {
+        let disks = [
+            ("C:".into(), 84.0),
+            ("D:".into(), 91.0),
+            ("E:".into(), 20.0),
+        ];
+        let segments = insight_segments(Some(10.0), Some(40.0), &disks);
+        assert_eq!(
+            sentence(&segments),
+            "Everything is steady. Disk D: is running high at 91%."
+        );
+        assert_eq!(segments.iter().filter(|(_, emphasis)| *emphasis).count(), 1);
+    }
+
+    #[test]
+    fn insight_lists_busy_compute_without_claiming_steadiness() {
+        let segments = insight_segments(Some(95.0), Some(82.4), &[]);
+        assert_eq!(
+            sentence(&segments),
+            "CPU is running high at 95%. Memory is running high at 82%."
+        );
+    }
+
+    #[test]
+    fn drive_labels_drop_trailing_separators() {
+        assert_eq!(drive_label("C:\\"), "C:");
+        assert_eq!(drive_label("/"), "/");
+        assert_eq!(drive_label("/mnt/data/"), "/mnt/data");
     }
 }
