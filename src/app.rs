@@ -50,7 +50,8 @@ pub struct VijiDeck {
     descending: bool,
     sort: usize,
     inspector_tab: usize,
-    host: (String, String),
+    host: String,
+    vijitek_logo: egui::TextureHandle,
     #[cfg(feature = "ui-preview")]
     preview_started: Instant,
     #[cfg(feature = "ui-preview")]
@@ -60,6 +61,17 @@ pub struct VijiDeck {
 impl VijiDeck {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         theme(&cc.egui_ctx);
+        let logo = image::load_from_memory(include_bytes!("../assets/vijitek-logo.png"))
+            .expect("embedded VijiTek logo is a valid PNG")
+            .into_rgba8();
+        let vijitek_logo = cc.egui_ctx.load_texture(
+            "vijitek-logo",
+            egui::ColorImage::from_rgba_unmultiplied(
+                [logo.width() as usize, logo.height() as usize],
+                logo.as_raw(),
+            ),
+            egui::TextureOptions::LINEAR,
+        );
         let (snapshot, selected) = initial_state();
         let scanned = !snapshot.ports.is_empty();
         let (tx, commands) = mpsc::channel();
@@ -132,12 +144,8 @@ impl VijiDeck {
             descending: preferences.descending,
             sort: preferences.sort,
             inspector_tab: 0,
-            host: (
-                sysinfo::System::host_name().unwrap_or_else(|| "This computer".into()),
-                sysinfo::System::long_os_version()
-                    .or_else(sysinfo::System::name)
-                    .unwrap_or_else(|| std::env::consts::OS.into()),
-            ),
+            host: sysinfo::System::host_name().unwrap_or_else(|| "This computer".into()),
+            vijitek_logo,
             #[cfg(feature = "ui-preview")]
             preview_started: Instant::now(),
             #[cfg(feature = "ui-preview")]
@@ -282,25 +290,6 @@ impl VijiDeck {
         }
     }
 
-    fn status_text(&self) -> &str {
-        match self.active_tool {
-            Tool::Docker => self.docker.status(),
-            Tool::Services => self.services.status(),
-            Tool::Environment => self.environment.status(),
-            Tool::Cleanup => self
-                .cleanup
-                .as_ref()
-                .map_or("Disk cleanup", |cleanup| cleanup.status()),
-            Tool::Overview => self.overview.status(),
-            Tool::Computer => self.overview.computer_status(),
-            Tool::Processes => "Refresh every 2 seconds",
-            Tool::Logs => self.logs.status(),
-            Tool::Ports if !self.scanned => "Waiting for first scan",
-            Tool::Ports if self.auto => "Live · refresh every 2 seconds",
-            Tool::Ports => "Auto refresh paused",
-        }
-    }
-
     /// Icon navigation rail with host details at its foot.
     fn rail(&mut self, ctx: &egui::Context) {
         let width = if ctx.content_rect().width() < 1100.0 {
@@ -334,7 +323,7 @@ impl VijiDeck {
                     );
                 });
                 ui.add_space(if ui.available_height() < 520.0 {
-                    18.0
+                    12.0
                 } else {
                     36.0
                 });
@@ -351,78 +340,81 @@ impl VijiDeck {
                         }
                     }
                 }
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    ui.spacing_mut().item_spacing.y = 4.0;
+                self.rail_footer(ui);
+            });
+    }
+
+    fn rail_footer(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+            egui::Frame::new()
+                .inner_margin(egui::Margin::symmetric(10, 0))
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
+                    ui.spacing_mut().interact_size.y = 20.0;
+
                     ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        caption(ui, concat!("v", env!("CARGO_PKG_VERSION")));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let widget = ui
-                                .add(
-                                    egui::Button::new(
-                                        RichText::new("Widget").size(13.0).color(TEXT_2),
-                                    )
-                                    .fill(SURFACE)
-                                    .stroke(Stroke::NONE)
-                                    .corner_radius(255),
+                        caption(ui, "by");
+                        let logo = (self.vijitek_logo.id(), egui::vec2(18.0, 18.0));
+                        let credit = ui
+                            .add(
+                                egui::Button::image_and_text(
+                                    logo,
+                                    RichText::new("VijiTek").size(12.0),
                                 )
-                                .on_hover_text("Keep monitoring in a floating widget");
-                            if widget.clicked() {
-                                self.background
-                                    .apply(crate::background::Action::Widget, ctx);
-                            }
+                                .small()
+                                .frame(false)
+                                .image_tint_follows_text_color(true),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .on_hover_text("https://vijitek.com");
+                        if credit.clicked() {
+                            ui.ctx()
+                                .open_url(egui::OpenUrl::new_tab("https://vijitek.com"));
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            caption(ui, concat!("v", env!("CARGO_PKG_VERSION")));
                         });
                     });
-                    ui.add_space(14.0);
+                    ui.add_space(6.0);
+                    rule(ui);
+                    ui.add_space(6.0);
+
+                    let widget = ui
+                        .add_sized(
+                            [ui.available_width(), 26.0],
+                            egui::Button::new("Open widget").small(),
+                        )
+                        .on_hover_text("Keep monitoring in a floating widget");
+                    if widget.clicked() {
+                        self.background
+                            .apply(crate::background::Action::Widget, ui.ctx());
+                    }
+                    ui.add_space(10.0);
+
                     #[cfg(windows)]
                     if let Some(error) = &self.background.error {
-                        ui.horizontal(|ui| {
-                            ui.add_space(10.0);
-                            ui.label(RichText::new("Tray unavailable").size(12.0).color(WARNING))
-                                .on_hover_text(error);
-                        });
+                        ui.label(RichText::new("Tray unavailable").size(12.0).color(WARNING))
+                            .on_hover_text(error);
                     }
-                    let warn =
-                        self.active_tool == Tool::Ports && !self.snapshot.warnings.is_empty();
-                    ui.horizontal(|ui| {
-                        ui.add_space(6.0);
-                        dot(ui, if warn { WARNING } else { TEAL });
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(self.status_text()).size(12.0).color(MUTED),
-                            )
-                            .truncate(),
-                        )
-                        .on_hover_text(self.status_text());
-                    });
                     let uptime = sysinfo::System::uptime();
-                    ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(format!(
-                                    "{} · up {}d {}h",
-                                    self.host.1,
-                                    uptime / 86_400,
-                                    uptime / 3_600 % 24
-                                ))
-                                .size(12.0)
-                                .color(MUTED),
-                            )
+                    let uptime_label = format!(
+                        "Uptime {}d {}h {}m",
+                        uptime / 86_400,
+                        uptime / 3_600 % 24,
+                        uptime / 60 % 60,
+                    );
+                    ui.add(
+                        egui::Label::new(RichText::new(&uptime_label).size(12.0).color(MUTED))
                             .truncate(),
-                        );
-                    });
-                    ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(&self.host.0).font(medium(13.0)).color(TEXT_2),
-                            )
+                    )
+                    .on_hover_text(uptime_label);
+                    ui.add(
+                        egui::Label::new(RichText::new(&self.host).font(medium(13.0)).color(TEXT))
                             .truncate(),
-                        );
-                    });
+                    )
+                    .on_hover_text(&self.host);
                 });
-            });
+        });
     }
 }
 

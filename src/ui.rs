@@ -21,7 +21,6 @@ pub const TEXT: Color32 = Color32::from_rgb(234, 239, 247);
 pub const TEXT_2: Color32 = Color32::from_rgb(169, 178, 191);
 pub const MUTED: Color32 = Color32::from_rgb(125, 135, 150);
 pub const ACCENT: Color32 = Color32::from_rgb(158, 168, 255);
-pub const TEAL: Color32 = Color32::from_rgb(103, 210, 204);
 pub const WARNING: Color32 = Color32::from_rgb(243, 127, 176);
 pub const DANGER: Color32 = Color32::from_rgb(238, 100, 118);
 pub const SELECTED_FILL: Color32 = Color32::from_rgb(40, 47, 74);

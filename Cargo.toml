@@ -1,6 +1,6 @@
 [package]
 name = "vijideck"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2024"
 description = "VijiDeck desktop utilities for system overview, port management, and disk cleanup"
 license = "MIT"
@@ -16,7 +16,7 @@ sysinfo = "0.37.2"
 chrono = "0.4"
 serde_json = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc = "0.2"

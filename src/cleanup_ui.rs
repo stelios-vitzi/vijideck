@@ -311,15 +311,6 @@ impl Cleanup {
             }
         }
     }
-    pub fn status(&self) -> &str {
-        if self.deleting {
-            "Deleting selected folders"
-        } else if self.busy {
-            "Syncing cleanup results"
-        } else {
-            "Cleanup / review before deleting"
-        }
-    }
     fn elapsed(&self) -> Duration {
         self.started
             .map(|t| t.elapsed())

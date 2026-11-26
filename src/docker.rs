@@ -68,17 +68,6 @@ impl Docker {
             confirmation: None,
         }
     }
-    pub fn status(&self) -> &str {
-        if self.mutating {
-            return "Applying Docker action…";
-        }
-        match self.tab {
-            Tab::Images => self.images.status(),
-            Tab::Volumes => self.volumes.status(),
-            Tab::Containers if self.error.is_some() => "Docker unavailable / refresh to retry",
-            Tab::Containers => "Docker containers",
-        }
-    }
     fn launch(&mut self, ctx: &egui::Context, request: Option<Request>) {
         if self.rx.is_some() {
             if request.is_some() {

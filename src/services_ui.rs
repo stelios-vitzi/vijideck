@@ -55,18 +55,6 @@ impl Services {
         }
     }
 
-    pub fn status(&self) -> &str {
-        if self.mutating {
-            "Applying service action"
-        } else if self.pending.is_some() {
-            "Reading configured services"
-        } else if self.error.is_some() {
-            "Services unavailable / refresh to retry"
-        } else {
-            "Local service manager"
-        }
-    }
-
     fn launch(&mut self, ctx: &egui::Context, request: Option<Request>) {
         if self.pending.is_some() {
             return;

@@ -186,15 +186,6 @@ impl Environment {
             let _ = tx.send((path, result));
         });
     }
-    pub fn status(&self) -> &'static str {
-        if self.path_pending.is_some() {
-            "Updating user PATH"
-        } else if self.rx.is_some() {
-            "Syncing developer environment"
-        } else {
-            "Developer environment"
-        }
-    }
     #[cfg(feature = "ui-preview")]
     pub fn preview_ready(&self) -> bool {
         (self.tab == 1 && self.variables.preview_ready())

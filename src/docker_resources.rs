@@ -107,17 +107,6 @@ impl Resources {
         }
     }
 
-    pub fn status(&self) -> &'static str {
-        if self.error.is_some() {
-            "Docker unavailable / refresh to retry"
-        } else {
-            match self.kind {
-                Kind::Images => "Docker images",
-                Kind::Volumes => "Docker volumes",
-            }
-        }
-    }
-
     #[cfg(test)]
     pub(crate) fn fixture(kind: Kind, text: &str) -> Self {
         let mut list = Self::new(kind);

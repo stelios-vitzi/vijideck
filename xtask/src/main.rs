@@ -15,10 +15,12 @@ fn run(command: &mut Command) -> Result<String> {
     let output = command.stderr(Stdio::inherit()).output().map_err(|error| {
         let hint = if error.kind() == std::io::ErrorKind::NotFound {
             match command.get_program().to_str() {
-                Some("dpkg-shlibdeps" | "dpkg-deb") =>
-                    " Install Debian packaging tools: sudo apt install dpkg-dev",
-                Some("desktop-file-validate") =>
-                    " Install desktop validation tools: sudo apt install desktop-file-utils",
+                Some("dpkg-shlibdeps" | "dpkg-deb") => {
+                    " Install Debian packaging tools: sudo apt install dpkg-dev"
+                }
+                Some("desktop-file-validate") => {
+                    " Install desktop validation tools: sudo apt install desktop-file-utils"
+                }
                 _ => " Check that the command is installed and available on PATH.",
             }
         } else {

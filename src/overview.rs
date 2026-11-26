@@ -192,16 +192,6 @@ impl Overview {
         }
     }
 
-    pub fn status(&self) -> &str {
-        if self.sample.is_none() {
-            "Reading system hardware"
-        } else if self.updated.elapsed() > Duration::from_secs(5) {
-            "Telemetry delayed"
-        } else {
-            "Live · 1 second samples"
-        }
-    }
-
     pub fn widget(&self, ctx: &egui::Context, can_hide: bool) -> Option<crate::background::Action> {
         use crate::background::Action;
         #[cfg(not(windows))]
@@ -651,14 +641,6 @@ impl Overview {
     }
 
     /// Status line for the Computer page.
-    pub fn computer_status(&self) -> &str {
-        if self.hardware.is_none() {
-            "Reading system hardware"
-        } else {
-            "Hardware inventory"
-        }
-    }
-
     #[cfg(feature = "ui-preview")]
     pub fn computer_preview_ready(&self) -> bool {
         self.hardware.is_some()

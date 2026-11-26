@@ -136,13 +136,6 @@ impl Logs {
             self.refresh(ctx);
         }
     }
-    pub fn status(&self) -> &str {
-        if self.pending.is_some() {
-            "Reading system logs"
-        } else {
-            "System logs / read only"
-        }
-    }
     fn refresh(&mut self, ctx: &egui::Context) {
         if self.pending.is_some() {
             return;
