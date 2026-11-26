@@ -985,7 +985,18 @@ mod tests {
         assert_eq!(scan.entries.len(), 1);
         assert_eq!(scan.entries[0].path, f.0.join("project/node_modules"));
         let container_path = f.0.join(".local/share/docker/volumes/project/node_modules");
-        assert!(validate_cached(&scan.root, &container_path, &AtomicBool::new(false)).is_none());
+        let mut preview = Vec::new();
+        cached_preview(
+            &scan.root,
+            vec![Cached {
+                path: container_path,
+                bytes: 4,
+                files: 1,
+            }],
+            &AtomicBool::new(false),
+            |candidate| preview.push(candidate),
+        );
+        assert!(preview.is_empty());
         let direct = super::scan(
             &f.0.join(".local/share/docker"),
             &AtomicBool::new(false),
