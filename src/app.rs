@@ -1,5 +1,6 @@
 mod ports_view;
 mod tool;
+mod updates;
 
 use crate::{
     ports::{self, Snapshot, SocketKey, StopRequest},
@@ -25,6 +26,7 @@ pub struct VijiDeck {
     background: crate::background::Background,
     storage: Option<crate::storage::Storage>,
     saved_preferences: crate::storage::Preferences,
+    updates: updates::Updates,
     active_tool: Tool,
     logs_only: bool,
     processes: crate::processes::Processes,
@@ -59,7 +61,7 @@ pub struct VijiDeck {
 }
 
 impl VijiDeck {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, update_error: Option<String>) -> Self {
         theme(&cc.egui_ctx);
         let logo = image::load_from_memory(include_bytes!("../assets/vijitek-logo.png"))
             .expect("embedded VijiTek logo is a valid PNG")
@@ -118,6 +120,7 @@ impl VijiDeck {
         let mut app = Self {
             storage,
             saved_preferences: preferences,
+            updates: updates::Updates::new(preferences.auto_update_checks, update_error),
             background: crate::background::Background::new(cc),
             active_tool: Tool::Overview,
             logs_only: false,
@@ -181,6 +184,12 @@ impl VijiDeck {
                         .preview(view == "services-confirm", view == "services-empty");
                 }
                 Ok("logs") => self.active_tool = Tool::Logs,
+                Ok("settings") => {
+                    self.scanned = true;
+                    self.auto = false;
+                    self.host = "This computer".into();
+                    self.updates.preview();
+                }
                 Ok("logs-list") => {
                     self.active_tool = Tool::Logs;
                     self.logs.preview();
@@ -227,6 +236,7 @@ impl VijiDeck {
         }
         let prefs = crate::storage::Preferences {
             auto_refresh: self.auto,
+            auto_update_checks: self.updates.auto,
             listeners_only: self.listeners_only,
             protocol: self.protocol,
             sort: self.sort,
@@ -322,7 +332,7 @@ impl VijiDeck {
                             .extra_letter_spacing(-0.3),
                     );
                 });
-                ui.add_space(if ui.available_height() < 520.0 {
+                ui.add_space(if ctx.content_rect().height() < 660.0 {
                     12.0
                 } else {
                     36.0
@@ -389,6 +399,22 @@ impl VijiDeck {
                         self.background
                             .apply(crate::background::Action::Widget, ui.ctx());
                     }
+                    if !self.logs_only {
+                        let label = if self.updates.has_update() {
+                            RichText::new("Settings · Update").color(ACCENT)
+                        } else {
+                            RichText::new("Settings")
+                        };
+                        if ui
+                            .add_sized(
+                                [ui.available_width(), 26.0],
+                                egui::Button::new(label).small(),
+                            )
+                            .clicked()
+                        {
+                            self.updates.open = true;
+                        }
+                    }
                     ui.add_space(10.0);
 
                     #[cfg(windows)]
@@ -437,6 +463,12 @@ impl eframe::App for VijiDeck {
         self.background.poll(ctx);
         self.background.sync_window_shape();
         self.background.sync_window_size(ctx);
+        let preview =
+            cfg!(feature = "ui-preview") && std::env::var_os("VIJIDECK_SCREENSHOT_TO").is_some();
+        if self.updates.poll(!self.logs_only && !preview) {
+            self.background.apply(crate::background::Action::Quit, ctx);
+            return;
+        }
         if self.active_tool != Tool::Docker || self.background.compact {
             self.docker.close_logs();
         }
@@ -520,6 +552,7 @@ impl eframe::App for VijiDeck {
             }
             Tool::Ports => self.show_ports(ctx),
         }
+        self.updates.show(ctx);
         #[cfg(feature = "ui-preview")]
         self.capture_preview(ctx);
     }
@@ -527,7 +560,9 @@ impl eframe::App for VijiDeck {
 
 fn initial_state() -> (Snapshot, Option<SocketKey>) {
     #[cfg(feature = "ui-preview")]
-    if std::env::var_os("VIJIDECK_SCREENSHOT_TO").is_some() {
+    if std::env::var_os("VIJIDECK_SCREENSHOT_TO").is_some()
+        && std::env::var("VIJIDECK_PREVIEW_VIEW").as_deref() != Ok("settings")
+    {
         let snapshot = ports::scan(&mut sysinfo::System::new());
         let selected = snapshot
             .ports

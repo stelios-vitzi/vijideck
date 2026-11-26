@@ -22,7 +22,13 @@ CI builds Windows x64, macOS Intel and Apple Silicon, and Linux x64 packages on 
 
 To prepare a release, update `Cargo.toml` and `Cargo.lock` together, commit, then push a matching tag such as `v0.1.4` (`git tag v0.1.4 && git push origin v0.1.4`). The tag starts the **Desktop build and release** workflow (`.github/workflows/release.yml`): it first checks that the tag matches the `Cargo.toml` and `Cargo.lock` version, then runs the full CI check and packaging matrix and a RustSec `cargo audit` of both lockfiles. When every gate passes, it publishes a GitHub Release titled `VijiDeck <version>`, marked as latest, with all packages, a combined `SHA256SUMS.txt`, and generated notes. If any gate fails, nothing is published and the run summary lists the failed gate. Branch pushes and pull requests run CI only; their packages remain available as workflow artifacts for 14 days.
 
-Packages currently have no trusted distribution signature. macOS bundles use an ad-hoc signature, which does not provide Developer ID trust or notarization. Windows SmartScreen and macOS Gatekeeper may warn or block downloaded packages. Public distribution with trusted installation requires Windows code-signing credentials and an Apple Developer ID/notarization setup. Auto-updates are not configured. Checksums verify file integrity, not publisher identity. The macOS bundle identifier is `app.vijideck.desktop`; choose an identifier under your control before signing a public release.
+Packages currently have no trusted distribution signature. macOS bundles use an ad-hoc signature, which does not provide Developer ID trust or notarization. Windows SmartScreen and macOS Gatekeeper may warn or block downloaded packages. Public distribution with trusted installation requires Windows code-signing credentials and an Apple Developer ID/notarization setup. Checksums verify file integrity, not publisher identity. The macOS bundle identifier is `app.vijideck.desktop`; choose an identifier under your control before signing a public release.
+
+### In-app updates
+
+Open **Settings** in the sidebar to check for updates manually or change the automatic check preference. The default is to check GitHub at startup and every 24 hours while VijiDeck is running. When a newer stable release is available, select **Download update**, then **Restart to update**. VijiDeck verifies the download against the release's `SHA256SUMS.txt` before installing it.
+
+Windows installations use the matching Inno Setup scope. All-users installations can prompt for elevation. Portable Windows and Linux copies replace the executable in a writable folder. The macOS updater replaces an installed app bundle in a writable folder. Debian packages require `pkexec` and a graphical authentication agent to run `dpkg`. The first version with the updater must be installed using the existing manual release process.
 
 ## Checks and visual QA
 
@@ -50,6 +56,8 @@ Service visual previews use `VIJIDECK_PREVIEW_VIEW=services-list`,
 `ui-preview` feature. These use synthetic data and never execute service actions.
 Use `services` for read-only discovery from the host service manager. All service
 previews also support `VIJIDECK_PREVIEW_COMPACT=1`.
+
+Use `VIJIDECK_PREVIEW_VIEW=settings` to capture the update settings with a sample release.
 
 ## License metadata
 

@@ -6,6 +6,7 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Preferences {
     pub auto_refresh: bool,
+    pub auto_update_checks: bool,
     pub listeners_only: bool,
     pub protocol: usize,
     pub sort: usize,
@@ -16,6 +17,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             auto_refresh: true,
+            auto_update_checks: true,
             listeners_only: true,
             protocol: 0,
             sort: 0,
@@ -86,6 +88,9 @@ impl Storage {
         if let Some(value @ 0..=1) = get("auto_refresh")? {
             prefs.auto_refresh = value == 1;
         }
+        if let Some(value @ 0..=1) = get("auto_update_checks")? {
+            prefs.auto_update_checks = value == 1;
+        }
         if let Some(value @ 0..=1) = get("listeners_only")? {
             prefs.listeners_only = value == 1;
         }
@@ -105,6 +110,7 @@ impl Storage {
         let tx = self.connection.transaction()?;
         for (key, value) in [
             ("auto_refresh", prefs.auto_refresh as i64),
+            ("auto_update_checks", prefs.auto_update_checks as i64),
             ("listeners_only", prefs.listeners_only as i64),
             ("protocol", prefs.protocol as i64),
             ("sort", prefs.sort as i64),
@@ -117,7 +123,7 @@ impl Storage {
     }
 }
 
-fn data_dir() -> Option<PathBuf> {
+pub(crate) fn data_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
         std::env::var_os("LOCALAPPDATA")
@@ -153,6 +159,7 @@ mod tests {
         assert_eq!(store.load_preferences().unwrap(), Preferences::default());
         let prefs = Preferences {
             auto_refresh: false,
+            auto_update_checks: false,
             listeners_only: false,
             protocol: 2,
             sort: 3,

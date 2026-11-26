@@ -1,6 +1,6 @@
 [package]
 name = "vijideck"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "VijiDeck desktop utilities for system overview, port management, and disk cleanup"
 license = "MIT"
@@ -15,6 +15,8 @@ netstat2 = "0.11.2"
 sysinfo = "0.37.2"
 chrono = "0.4"
 serde_json = "1"
+sha2 = "0.10"
+ureq = { version = "3.1.4", default-features = false, features = ["rustls"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 rusqlite = { version = "0.41.1", features = ["bundled"] }
 

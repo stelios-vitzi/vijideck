@@ -32,10 +32,35 @@ mod services;
 mod services_ui;
 mod storage;
 mod ui;
+mod update;
 mod volumes;
 mod worker;
 
 fn main() -> eframe::Result {
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|arg| arg == "--vijideck-apply-update")
+    {
+        update::run_helper(&args[1..]);
+        return Ok(());
+    }
+    let mut update_error = None;
+    if let [command, id, error] = args.as_slice()
+        && command == "--vijideck-update-result"
+        && let Some(id) = id.to_str()
+    {
+        let id = id.to_owned();
+        std::thread::spawn(move || {
+            if let Err(error) = update::finish(&id) {
+                eprintln!("{error}");
+            }
+        });
+        update_error = error
+            .to_str()
+            .filter(|error| !error.is_empty())
+            .map(str::to_owned);
+    }
     let icon = image::load_from_memory(include_bytes!(
         "../packaging/linux/icons/hicolor/64x64/apps/vijideck.png"
     ))
@@ -56,7 +81,7 @@ fn main() -> eframe::Result {
                 .with_min_inner_size([900.0, 580.0]),
             ..Default::default()
         },
-        Box::new(|cc| Ok(Box::new(app::VijiDeck::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(app::VijiDeck::new(cc, update_error)))),
     )
 }
 
