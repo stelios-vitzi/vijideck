@@ -4,7 +4,7 @@ use crate::{
 };
 use eframe::egui::{self, RichText, Stroke};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -55,6 +55,8 @@ pub struct Cleanup {
     inspected: Option<PathBuf>,
     details_open: bool,
     scan: Option<Scan>,
+    /// Position of each streamed candidate in `scan.entries`, valid while scanning.
+    streamed: HashMap<PathBuf, usize>,
     selected: HashSet<PathBuf>,
     query: String,
     terms: Vec<String>,
@@ -90,6 +92,7 @@ impl Cleanup {
             inspected: None,
             details_open: false,
             scan: None,
+            streamed: HashMap::new(),
             selected: HashSet::new(),
             query: String::new(),
             terms: Vec::new(),
@@ -144,6 +147,7 @@ impl Cleanup {
             root: root.clone(),
             ..Scan::default()
         });
+        self.streamed.clear();
         self.selected.clear();
         self.inspected = None;
         self.rows.clear();
@@ -163,19 +167,25 @@ impl Cleanup {
                     .get("root")
                     .and_then(|v| serde_json::from_value::<PathBuf>(v.clone()).ok());
                 if cached_root.as_ref() == Some(&root) {
-                    let paths = value
-                        .get("paths")
-                        .and_then(|v| serde_json::from_value::<Vec<PathBuf>>(v.clone()).ok())
-                        .unwrap_or_default();
-                    for path in paths {
-                        if cancel.load(Ordering::Relaxed) {
-                            break;
-                        }
-                        if let Some(candidate) = cleanup::validate_cached(&root, &path, &cancel) {
-                            tx.send(Event::Update(ScanUpdate::Found(candidate))).ok();
-                            ctx.request_repaint();
-                        }
-                    }
+                    let cached = value
+                        .get("entries")
+                        .and_then(|v| v.as_array())
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|e| {
+                            Some(cleanup::Cached {
+                                path: serde_json::from_value(e.get("path")?.clone()).ok()?,
+                                bytes: e.get("bytes")?.as_u64()?,
+                                files: usize::try_from(e.get("files")?.as_u64()?).ok()?,
+                            })
+                        })
+                        .collect();
+                    // Shown immediately from cached sizes; the scan below replaces
+                    // each one with a fresh, deletable measurement.
+                    cleanup::cached_preview(&root, cached, &cancel, |candidate| {
+                        tx.send(Event::Update(ScanUpdate::Found(candidate))).ok();
+                    });
+                    ctx.request_repaint();
                 }
             }
             let scan = cleanup::scan(&root, &cancel, |update| {
@@ -248,17 +258,18 @@ impl Cleanup {
                 Event::Update(ScanUpdate::Progress(progress)) => self.progress = progress,
                 Event::Update(ScanUpdate::Found(candidate)) => {
                     if let Some(s) = &mut self.scan {
-                        if let Some(existing) =
-                            s.entries.iter_mut().find(|e| e.path == candidate.path)
-                        {
-                            *existing = candidate;
+                        if let Some(&i) = self.streamed.get(&candidate.path) {
+                            s.entries[i] = candidate;
                         } else {
+                            self.streamed
+                                .insert(candidate.path.clone(), s.entries.len());
                             s.entries.push(candidate);
                         }
                         self.dirty = true;
                     }
                 }
                 Event::Scanned(scan) => {
+                    self.streamed = HashMap::new();
                     self.busy = false;
                     self.started = None;
                     self.progress.directories = scan.visited;

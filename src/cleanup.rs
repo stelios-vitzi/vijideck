@@ -1,7 +1,10 @@
 //! Conservative, directory-based cleanup. Never follows symlinks or Windows reparse points.
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    fs, io,
+    collections::{HashSet, VecDeque, hash_map::DefaultHasher},
+    ffi::OsStr,
+    fs,
+    hash::{Hash, Hasher},
+    io,
     path::{Path, PathBuf},
     sync::{
         Arc, Condvar, Mutex,
@@ -10,7 +13,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct Stamp {
     directory: bool,
     len: u64,
@@ -29,7 +32,69 @@ pub struct Candidate {
     pub created: Option<SystemTime>,
     pub issue: Option<String>,
     pub search: String,
-    manifest: Arc<HashMap<PathBuf, Stamp>>,
+    /// Present only for a complete measurement; deletion requires it.
+    fingerprint: Option<Fingerprint>,
+}
+
+/// Constant-size, order-independent summary of a folder's contents (relative
+/// paths, kinds, sizes, and timestamps). Two independently seeded 64-bit
+/// SipHash sums replace a per-file manifest, so memory no longer grows with the
+/// number of measured files, and subtrees can be measured in any order or in
+/// parallel. Deletion re-inventories the folder and requires an exact match.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Fingerprint {
+    entries: u64,
+    bytes: u64,
+    a: u64,
+    b: u64,
+}
+
+impl Fingerprint {
+    fn merge(&mut self, other: &Fingerprint) {
+        self.entries += other.entries;
+        self.bytes = self.bytes.saturating_add(other.bytes);
+        self.a = self.a.wrapping_add(other.a);
+        self.b = self.b.wrapping_add(other.b);
+    }
+}
+
+#[derive(Default)]
+struct Measured {
+    fingerprint: Fingerprint,
+    files: usize,
+    newest: Option<SystemTime>,
+}
+
+impl Measured {
+    fn record(&mut self, parent: u64, name: &OsStr, stamp: &Stamp) {
+        // Directory timestamps are excluded: any added, removed, or changed child
+        // already changes the fingerprint, and on NTFS the timestamps reported by
+        // parent enumeration are updated lazily, which would cause false mismatches.
+        let identity = if stamp.directory { None } else { Some(stamp) };
+        let entry = |seed: u8| {
+            let mut h = DefaultHasher::new();
+            (seed, parent, name, stamp.directory, identity).hash(&mut h);
+            h.finish()
+        };
+        let f = &mut self.fingerprint;
+        f.entries += 1;
+        f.bytes = f.bytes.saturating_add(stamp.len);
+        f.a = f.a.wrapping_add(entry(0xa5));
+        f.b = f.b.wrapping_add(entry(0x5a));
+        self.files += usize::from(!stamp.directory);
+        self.newest = self.newest.max(stamp.modified);
+    }
+    fn merge(&mut self, other: &Measured) {
+        self.fingerprint.merge(&other.fingerprint);
+        self.files += other.files;
+        self.newest = self.newest.max(other.newest);
+    }
+}
+
+fn path_key(relative: &Path) -> u64 {
+    let mut h = DefaultHasher::new();
+    relative.hash(&mut h);
+    h.finish()
 }
 
 #[derive(Default)]
@@ -78,19 +143,19 @@ fn linked(meta: &fs::Metadata) -> bool {
     }
 }
 
-/// Whether two entries live on the same filesystem. On Unix this catches every
-/// mount crossing, including ones absent from any mount list. Windows volume
-/// mounts are reparse points and are already rejected by `linked`.
-fn same_device(a: &fs::Metadata, b: &fs::Metadata) -> bool {
+/// Filesystem identity used to keep traversal on one filesystem. On Unix this
+/// catches every mount crossing, including ones absent from any mount list.
+/// Windows volume mounts are reparse points and are already rejected by `linked`.
+fn device(meta: &fs::Metadata) -> u64 {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        a.dev() == b.dev()
+        meta.dev()
     }
     #[cfg(not(unix))]
     {
-        let _ = (a, b);
-        true
+        let _ = meta;
+        0
     }
 }
 
@@ -151,9 +216,9 @@ fn linux_mount_points(table: &[u8], field: usize) -> Vec<PathBuf> {
 /// Reject a path when it, or any ancestor below the scan root, is a mount point
 /// or sits on a different filesystem than the root.
 fn check_boundary(root: &Path, path: &Path, mounts: &HashSet<PathBuf>) -> io::Result<()> {
-    let root_meta = fs::symlink_metadata(root)?;
+    let root_device = device(&fs::symlink_metadata(root)?);
     for ancestor in path.ancestors().take_while(|a| *a != root) {
-        if mounts.contains(ancestor) || !same_device(&root_meta, &fs::symlink_metadata(ancestor)?) {
+        if mounts.contains(ancestor) || root_device != device(&fs::symlink_metadata(ancestor)?) {
             return Err(io::Error::other("Path is on another mounted filesystem"));
         }
     }
@@ -242,42 +307,60 @@ fn note(scan: &mut Scan, path: &Path, error: impl std::fmt::Display) {
     }
 }
 
-/// Rebuild a cached candidate from current filesystem state before showing it.
-pub fn validate_cached(root: &Path, path: &Path, cancel: &AtomicBool) -> Option<Candidate> {
-    validate_path(root, path).ok()?;
-    let meta = fs::symlink_metadata(path).ok()?;
+/// A previously found folder, as recorded in the result cache.
+pub struct Cached {
+    pub path: PathBuf,
+    pub bytes: u64,
+    pub files: usize,
+}
+
+/// Show previous results instantly while a fresh scan runs. Each path is still
+/// validated and reclassified against the current filesystem, but contents are
+/// not re-measured: sizes come from the cache, and these candidates carry no
+/// fingerprint, so they cannot be deleted until the scan measures them.
+pub fn cached_preview(
+    root: &Path,
+    cached: Vec<Cached>,
+    cancel: &AtomicBool,
+    mut emit: impl FnMut(Candidate),
+) {
+    let mut mounts = mount_points();
+    mounts.remove(root);
+    for entry in cached {
+        if cancel.load(Ordering::Relaxed) {
+            return;
+        }
+        if let Some(candidate) = preview_one(root, entry, &mounts) {
+            emit(candidate);
+        }
+    }
+}
+
+fn preview_one(root: &Path, entry: Cached, mounts: &HashSet<PathBuf>) -> Option<Candidate> {
+    let path = entry.path;
+    validate_path(root, &path).ok()?;
+    let meta = fs::symlink_metadata(&path).ok()?;
     if !meta.is_dir() || linked(&meta) {
         return None;
     }
-    let parent = path.parent()?;
-    let names: HashSet<String> = fs::read_dir(parent)
+    let names: HashSet<String> = fs::read_dir(path.parent()?)
         .ok()?
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .collect();
-    let (source, kind) = classify(path, &names)?;
-    let mut mounts = mount_points();
-    mounts.remove(root);
-    check_boundary(root, path, &mounts).ok()?;
-    let manifest = inventory(path, &mounts, cancel, &mut |_, _, _| {}).ok()?;
-    let bytes = manifest.values().map(|s| s.len).sum();
-    let files = manifest.values().filter(|s| !s.directory).count();
-    let modified = manifest
-        .values()
-        .filter_map(|s| s.modified)
-        .max()
-        .or_else(|| meta.modified().ok());
+    let (source, kind) = classify(&path, &names)?;
+    check_boundary(root, &path, mounts).ok()?;
     Some(Candidate {
-        path: path.to_owned(),
+        search: format!("{} {source} {kind}", path.display()).to_lowercase(),
+        path,
         source,
         kind,
-        bytes,
-        files,
-        modified,
+        bytes: entry.bytes,
+        files: entry.files,
+        modified: meta.modified().ok(),
         created: meta.created().ok(),
         issue: None,
-        search: format!("{} {source} {kind}", path.display()).to_lowercase(),
-        manifest: Arc::new(manifest),
+        fingerprint: None,
     })
 }
 
@@ -337,13 +420,22 @@ fn scan_with_workers(
             .clamp(1, 8)
     };
     result.workers = workers;
+    let root_device = match fs::symlink_metadata(&root) {
+        Ok(meta) => device(&meta),
+        Err(e) => {
+            note(&mut result, &root, e);
+            return result;
+        }
+    };
     let engine = Engine {
         queue: Mutex::new(Work {
-            jobs: VecDeque::from([Job::Discover(root.clone())]),
-            active: 0,
+            jobs: VecDeque::from([Job::Discover(root.clone(), root_device)]),
+            idle: 0,
             finished: false,
         }),
         ready: Condvar::new(),
+        workers,
+        idle: AtomicUsize::new(0),
         result: Mutex::new(result),
         cancel,
         mounts: {
@@ -375,17 +467,36 @@ fn scan_with_workers(
 }
 
 enum Job {
-    Discover(PathBuf),
-    Measure(Candidate),
+    /// A directory outside any candidate, with its filesystem identity.
+    Discover(PathBuf, u64),
+    /// One directory (relative path) inside a candidate being measured.
+    Measure(Arc<Measuring>, PathBuf),
+}
+
+/// A candidate measured as independent per-directory jobs, so one huge folder
+/// is spread across all workers. It is reported once its last job finishes.
+struct Measuring {
+    path: PathBuf,
+    device: u64,
+    state: Mutex<MeasureState>,
+}
+struct MeasureState {
+    candidate: Option<Candidate>,
+    measured: Measured,
+    outstanding: usize,
+    issue: Option<String>,
 }
 struct Work {
     jobs: VecDeque<Job>,
-    active: usize,
+    idle: usize,
     finished: bool,
 }
 struct Engine<'a, F> {
     queue: Mutex<Work>,
     ready: Condvar,
+    workers: usize,
+    /// Lock-free hint of `Work::idle`, read after every job.
+    idle: AtomicUsize,
     result: Mutex<Scan>,
     cancel: &'a AtomicBool,
     mounts: HashSet<PathBuf>,
@@ -411,42 +522,56 @@ impl<F: FnMut(ScanUpdate) + Send> Engine<'_, F> {
             }));
         }
     }
+    /// Each worker runs depth-first on its own stack without locking, and hands
+    /// its oldest (shallowest, usually largest) pending directories to the shared
+    /// queue only when another worker is idle. The scan ends when every worker
+    /// is idle and the shared queue is empty.
     fn run(&self) {
+        let mut local: Vec<Job> = Vec::new();
         loop {
-            let job = {
-                let mut work = self.queue.lock().unwrap();
-                loop {
-                    if self.cancel.load(Ordering::Relaxed) {
-                        work.jobs.clear();
-                    }
-                    if let Some(job) = work.jobs.pop_back() {
-                        work.active += 1;
-                        break job;
-                    }
-                    if work.active == 0 || work.finished {
-                        work.finished = true;
-                        self.ready.notify_all();
-                        return;
-                    }
-                    work = self.ready.wait(work).unwrap();
-                }
-            };
-            let children = match job {
-                Job::Discover(path) => self.discover(path),
-                Job::Measure(candidate) => {
-                    self.measure(candidate);
-                    Vec::new()
-                }
-            };
-            let mut work = self.queue.lock().unwrap();
-            work.active -= 1;
-            if !self.cancel.load(Ordering::Relaxed) {
-                work.jobs.extend(children);
+            if self.cancel.load(Ordering::Relaxed) {
+                local.clear();
             }
-            self.ready.notify_all();
+            let job = match local.pop() {
+                Some(job) => job,
+                None => {
+                    let mut work = self.queue.lock().unwrap();
+                    loop {
+                        if self.cancel.load(Ordering::Relaxed) {
+                            work.jobs.clear();
+                        }
+                        if let Some(job) = work.jobs.pop_back() {
+                            break job;
+                        }
+                        if work.finished {
+                            return;
+                        }
+                        work.idle += 1;
+                        if work.idle == self.workers {
+                            work.finished = true;
+                            self.ready.notify_all();
+                            return;
+                        }
+                        self.idle.store(work.idle, Ordering::Relaxed);
+                        work = self.ready.wait(work).unwrap();
+                        work.idle -= 1;
+                        self.idle.store(work.idle, Ordering::Relaxed);
+                    }
+                }
+            };
+            local.extend(match job {
+                Job::Discover(path, device) => self.discover(path, device),
+                Job::Measure(task, relative) => self.measure(task, relative),
+            });
+            if local.len() > 1 && self.idle.load(Ordering::Relaxed) > 0 {
+                let mut work = self.queue.lock().unwrap();
+                let shared = local.len() / 2;
+                work.jobs.extend(local.drain(..shared));
+                self.ready.notify_all();
+            }
         }
     }
-    fn discover(&self, dir: PathBuf) -> Vec<Job> {
+    fn discover(&self, dir: PathBuf, dir_device: u64) -> Vec<Job> {
         if self.cancel.load(Ordering::Relaxed) {
             return Vec::new();
         }
@@ -455,14 +580,8 @@ impl<F: FnMut(ScanUpdate) + Send> Engine<'_, F> {
         let mut part = Scan::default();
         let mut directories = Vec::new();
         let mut names = HashSet::new();
-        let dir_meta = match fs::symlink_metadata(&dir) {
-            Ok(meta) => meta,
-            Err(e) => {
-                note(&mut part, &dir, e);
-                self.merge(part);
-                return Vec::new();
-            }
-        };
+        // The directory's own metadata was already checked when its parent was
+        // enumerated, so no extra per-directory stat/open is needed here.
         let children = match fs::read_dir(&dir) {
             Ok(children) => children,
             Err(e) => {
@@ -520,7 +639,7 @@ impl<F: FnMut(ScanUpdate) + Send> Engine<'_, F> {
                 continue;
             }
             match child.metadata() {
-                Ok(meta) if !linked(&meta) && same_device(&dir_meta, &meta) => {
+                Ok(meta) if !linked(&meta) && device(&meta) == dir_device => {
                     directories.push((path, meta))
                 }
                 Ok(_) => part.skipped += 1,
@@ -532,9 +651,9 @@ impl<F: FnMut(ScanUpdate) + Send> Engine<'_, F> {
             .into_iter()
             .map(|(path, meta)| {
                 if let Some((source, kind)) = classify(&path, &names) {
-                    Job::Measure(Candidate {
+                    let candidate = Candidate {
                         search: format!("{} {source} {kind}", path.display()).to_lowercase(),
-                        path,
+                        path: path.clone(),
                         source,
                         kind,
                         bytes: 0,
@@ -542,10 +661,21 @@ impl<F: FnMut(ScanUpdate) + Send> Engine<'_, F> {
                         modified: meta.modified().ok(),
                         created: meta.created().ok(),
                         issue: None,
-                        manifest: Arc::new(HashMap::new()),
-                    })
+                        fingerprint: None,
+                    };
+                    let task = Measuring {
+                        path,
+                        device: dir_device,
+                        state: Mutex::new(MeasureState {
+                            candidate: Some(candidate),
+                            measured: Measured::default(),
+                            outstanding: 1,
+                            issue: None,
+                        }),
+                    };
+                    Job::Measure(Arc::new(task), PathBuf::new())
                 } else {
-                    Job::Discover(path)
+                    Job::Discover(path, device(&meta))
                 }
             })
             .collect()
@@ -561,96 +691,172 @@ impl<F: FnMut(ScanUpdate) + Send> Engine<'_, F> {
             .warnings
             .extend(part.warnings.into_iter().take(remaining));
     }
-    fn measure(&self, mut candidate: Candidate) {
-        if self.cancel.load(Ordering::Relaxed) {
-            return;
-        }
-        match inventory(
-            &candidate.path,
-            &self.mounts,
-            self.cancel,
-            &mut |path, directories, files| {
-                self.directories.fetch_add(directories, Ordering::Relaxed);
-                self.files.fetch_add(files, Ordering::Relaxed);
-                self.progress(path, false);
-            },
-        ) {
-            Ok(manifest) => {
-                for entry in manifest.values() {
-                    candidate.bytes = candidate.bytes.saturating_add(entry.len);
-                    candidate.files += usize::from(!entry.directory);
-                    candidate.modified = candidate.modified.max(entry.modified);
-                }
-                candidate.manifest = Arc::new(manifest);
+    fn measure(&self, task: Arc<Measuring>, relative: PathBuf) -> Vec<Job> {
+        let mut measured = Measured::default();
+        let mut subdirs = Vec::new();
+        let skip =
+            self.cancel.load(Ordering::Relaxed) || task.state.lock().unwrap().issue.is_some();
+        let outcome = if skip {
+            Ok(())
+        } else {
+            self.directories.fetch_add(1, Ordering::Relaxed);
+            let outcome = measure_dir(
+                &task.path,
+                &relative,
+                task.device,
+                &self.mounts,
+                self.cancel,
+                &mut measured,
+                None,
+                &mut subdirs,
+            );
+            self.files.fetch_add(measured.files, Ordering::Relaxed);
+            self.progress(&task.path, false);
+            outcome
+        };
+        let finished = {
+            let mut state = task.state.lock().unwrap();
+            if let Err(e) = outcome {
+                state.issue.get_or_insert_with(|| e.to_string());
+                subdirs.clear();
             }
-            Err(e) => candidate.issue = Some(e.to_string()),
+            state.measured.merge(&measured);
+            state.outstanding = state.outstanding + subdirs.len() - 1;
+            // Interrupted candidates are not presented as fully measured.
+            if state.outstanding == 0 && !self.cancel.load(Ordering::Relaxed) {
+                let mut candidate = state.candidate.take().expect("finished once");
+                if let Some(issue) = state.issue.take() {
+                    candidate.issue = Some(issue);
+                } else {
+                    let m = &state.measured;
+                    candidate.bytes = m.fingerprint.bytes;
+                    candidate.files = m.files;
+                    candidate.modified = candidate.modified.max(m.newest);
+                    candidate.fingerprint = Some(m.fingerprint);
+                }
+                Some(candidate)
+            } else {
+                None
+            }
+        };
+        if let Some(candidate) = finished {
+            self.bytes.fetch_add(candidate.bytes, Ordering::Relaxed);
+            self.found.fetch_add(1, Ordering::Relaxed);
+            self.result.lock().unwrap().entries.push(candidate.clone());
+            (self.reporter.lock().unwrap().1)(ScanUpdate::Found(candidate));
         }
-        // Interrupted candidates are not presented as fully measured.
-        if self.cancel.load(Ordering::Relaxed) {
-            return;
-        }
-        self.bytes.fetch_add(candidate.bytes, Ordering::Relaxed);
-        self.found.fetch_add(1, Ordering::Relaxed);
-        self.result.lock().unwrap().entries.push(candidate.clone());
-        (self.reporter.lock().unwrap().1)(ScanUpdate::Found(candidate));
+        subdirs
+            .into_iter()
+            .map(|relative| Job::Measure(task.clone(), relative))
+            .collect()
     }
 }
 
-/// Directory-at-a-time DFS bounds open handles and avoids per-file stat calls on
-/// Windows by consuming cached DirEntry metadata. Relative hash keys avoid
-/// repeating the root path and O(log n) tree insertion for every measured file.
-fn inventory(
+/// Check a candidate folder itself: a real directory on its parent's filesystem.
+/// Returns its stamp and the filesystem everything below it must stay on.
+fn candidate_root(path: &Path, mounts: &HashSet<PathBuf>) -> io::Result<(Stamp, u64)> {
+    let parent_device = device(&fs::symlink_metadata(path.parent().unwrap_or(path))?);
+    let meta = fs::symlink_metadata(path)?;
+    if mounts.contains(path) || linked(&meta) || !meta.is_dir() || device(&meta) != parent_device {
+        return Err(io::Error::other(
+            "Contains a mount, link, reparse point, or special file; deletion disabled",
+        ));
+    }
+    Ok((stamp(&meta), parent_device))
+}
+
+/// Record one directory of a candidate (plus the candidate itself when
+/// `relative` is empty). Entries are keyed by their parent's relative path, so
+/// serial and parallel traversals produce identical fingerprints. Uses the
+/// metadata returned by enumeration (no per-file stat/open on Windows) and
+/// allocates no per-file paths unless a deletion listing is requested.
+#[allow(clippy::too_many_arguments)]
+fn measure_dir(
     root: &Path,
+    relative: &Path,
+    root_device: u64,
     mounts: &HashSet<PathBuf>,
     cancel: &AtomicBool,
-    progress: &mut impl FnMut(&Path, usize, usize),
-) -> io::Result<HashMap<PathBuf, Stamp>> {
-    let mut manifest = HashMap::new();
-    let mut pending = vec![PathBuf::new()];
-    // The candidate must share its parent's filesystem, and so must everything below it.
-    let device = fs::symlink_metadata(root.parent().unwrap_or(root))?;
-    while let Some(relative) = pending.pop() {
+    measured: &mut Measured,
+    mut listing: Option<&mut Vec<(PathBuf, Stamp)>>,
+    subdirs: &mut Vec<PathBuf>,
+) -> io::Result<()> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err(io::Error::other("Scan cancelled"));
+    }
+    if relative.as_os_str().is_empty() {
+        let (stamp, _) = candidate_root(root, mounts)?;
+        measured.record(path_key(relative), OsStr::new(""), &stamp);
+        if let Some(listing) = listing.as_deref_mut() {
+            listing.push((root.to_path_buf(), stamp));
+        }
+    }
+    let dir = root.join(relative);
+    let parent = path_key(relative);
+    for child in fs::read_dir(&dir)? {
         if cancel.load(Ordering::Relaxed) {
             return Err(io::Error::other("Scan cancelled"));
         }
-        let dir = root.join(&relative);
-        // Fresh directory checks retain link protection when queued paths change.
-        let meta = fs::symlink_metadata(&dir)?;
-        if mounts.contains(&dir) || linked(&meta) || !meta.is_dir() || !same_device(&device, &meta)
-        {
+        let child = child?;
+        let meta = child.metadata()?; // Does not follow links; cached by Windows enumeration.
+        if linked(&meta) || (!meta.is_file() && !meta.is_dir()) {
             return Err(io::Error::other(
-                "Contains a mount, link, reparse point, or special file; deletion disabled",
+                "Contains a link, reparse point, or special file; deletion disabled",
             ));
         }
-        manifest.insert(relative.clone(), stamp(&meta));
-        progress(&dir, 1, 0);
-        let mut files = 0;
-        for child in fs::read_dir(&dir)? {
-            if cancel.load(Ordering::Relaxed) {
-                return Err(io::Error::other("Scan cancelled"));
-            }
-            let child = child?;
-            let meta = child.metadata()?; // Does not follow links; cached by Windows enumeration.
-            if linked(&meta) || (!meta.is_file() && !meta.is_dir()) {
+        let name = child.file_name();
+        let stamp = stamp(&meta);
+        measured.record(parent, &name, &stamp);
+        if meta.is_dir() {
+            let path = dir.join(&name);
+            if device(&meta) != root_device || mounts.contains(&path) {
                 return Err(io::Error::other(
-                    "Contains a link, reparse point, or special file; deletion disabled",
+                    "Contains a mount, link, reparse point, or special file; deletion disabled",
                 ));
             }
-            let relative = relative.join(child.file_name());
-            if meta.is_dir() {
-                pending.push(relative);
-            } else {
-                manifest.insert(relative, stamp(&meta));
-                files += 1;
-                if files == 128 {
-                    progress(&dir, 0, files);
-                    files = 0;
-                }
+            subdirs.push(relative.join(&name));
+            if let Some(listing) = listing.as_deref_mut() {
+                listing.push((path, stamp));
+            }
+        } else if let Some(listing) = listing.as_deref_mut() {
+            listing.push((dir.join(&name), stamp));
+        }
+    }
+    Ok(())
+}
+
+/// Strict serial inventory used right before deletion. Each queued directory is
+/// re-checked fresh so a folder swapped for a link after listing is refused.
+fn inventory(
+    root: &Path,
+    mounts: &HashSet<PathBuf>,
+    listing: &mut Vec<(PathBuf, Stamp)>,
+) -> io::Result<Measured> {
+    let cancel = AtomicBool::new(false);
+    let (_, root_device) = candidate_root(root, mounts)?;
+    let mut measured = Measured::default();
+    let mut pending = vec![PathBuf::new()];
+    while let Some(relative) = pending.pop() {
+        if !relative.as_os_str().is_empty() {
+            let meta = fs::symlink_metadata(root.join(&relative))?;
+            if linked(&meta) || !meta.is_dir() || device(&meta) != root_device {
+                return Err(io::Error::other(
+                    "Contains a mount, link, reparse point, or special file; deletion disabled",
+                ));
             }
         }
-        progress(&dir, 0, files);
+        measure_dir(
+            root,
+            &relative,
+            root_device,
+            mounts,
+            &cancel,
+            &mut measured,
+            Some(listing),
+            &mut pending,
+        )?;
     }
-    Ok(manifest)
+    Ok(measured)
 }
 
 /// Reject stale scans and link substitutions. Deletion is deliberately non-recursive:
@@ -702,30 +908,25 @@ fn validate_path(root: &Path, path: &Path) -> io::Result<()> {
 }
 
 fn delete_one(root: &Path, candidate: &Candidate, mounts: &HashSet<PathBuf>) -> io::Result<u64> {
-    if candidate.issue.is_some() || candidate.manifest.is_empty() {
+    let Some(scanned) = candidate.fingerprint.filter(|_| candidate.issue.is_none()) else {
         return Err(io::Error::other("Incomplete scan"));
-    }
+    };
     validate_path(root, &candidate.path)?;
     check_boundary(root, &candidate.path, mounts)?;
-    let current = inventory(
-        &candidate.path,
-        mounts,
-        &AtomicBool::new(false),
-        &mut |_, _, _| {},
-    )?;
-    if current != *candidate.manifest {
+    // The listing exists only for this one folder while it is being deleted.
+    let mut current = Vec::new();
+    if inventory(&candidate.path, mounts, &mut current)?.fingerprint != scanned {
         return Err(io::Error::other("Contents changed since scanning"));
     }
     let mut directories = Vec::new();
     let mut bytes = 0u64;
-    for (relative, expected) in &current {
-        let path = candidate.path.join(relative);
+    for (path, expected) in current {
         validate_path(root, &path)?;
         if expected.directory {
             directories.push(path);
             continue;
         }
-        if stamp(&fs::symlink_metadata(&path)?) != *expected {
+        if stamp(&fs::symlink_metadata(&path)?) != expected {
             return Err(io::Error::other("File changed during deletion"));
         }
         fs::remove_file(&path)?;
@@ -794,6 +995,43 @@ mod tests {
         assert!(direct.skipped > 0);
     }
 
+    /// Real-tree benchmark: `VIJIDECK_BENCH_ROOT=<dir> cargo test --release
+    /// benchmark_real_tree -- --ignored --nocapture`. Reports peak process memory.
+    #[test]
+    #[ignore]
+    fn benchmark_real_tree() {
+        let Some(root) = std::env::var_os("VIJIDECK_BENCH_ROOT") else {
+            return;
+        };
+        let done = AtomicBool::new(false);
+        let peak = std::thread::scope(|scope| {
+            let sampler = scope.spawn(|| {
+                let pid = sysinfo::get_current_pid().unwrap();
+                let mut system = sysinfo::System::new();
+                let mut peak = 0;
+                while !done.load(Ordering::Relaxed) {
+                    system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+                    peak = peak.max(system.process(pid).map_or(0, |p| p.memory()));
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                peak
+            });
+            let start = Instant::now();
+            let result = scan(Path::new(&root), &AtomicBool::new(false), |_| {});
+            done.store(true, Ordering::Relaxed);
+            println!(
+                "real scan: {:.3}s, {} dirs, {} files, {} candidates, {} MiB",
+                start.elapsed().as_secs_f64(),
+                result.visited,
+                result.measured_files,
+                result.entries.len(),
+                result.entries.iter().map(|e| e.bytes).sum::<u64>() >> 20
+            );
+            sampler.join().unwrap()
+        });
+        println!("peak process memory: {} MiB", peak >> 20);
+    }
+
     /// Reproducible warm-cache traversal benchmark, excluding fixture creation.
     #[test]
     #[ignore]
@@ -851,7 +1089,7 @@ mod tests {
         assert!(result.entries.iter().all(|e| e.issue.is_none()));
     }
     #[test]
-    fn cached_candidates_are_remeasured_and_missing_or_unclassified_paths_rejected() {
+    fn cached_preview_is_revalidated_but_never_deletable() {
         let fixture = Fixture::new();
         let root = fixture.0.canonicalize().unwrap();
         let project = root.join("cached");
@@ -859,13 +1097,51 @@ mod tests {
         std::fs::write(project.join("package.json"), "{}").unwrap();
         std::fs::write(project.join("node_modules/file"), "hello").unwrap();
         let path = project.join("node_modules");
-        let cancel = AtomicBool::new(false);
-        let candidate = validate_cached(&root, &path, &cancel).unwrap();
-        assert_eq!(candidate.bytes, 5);
-        std::fs::write(path.join("file"), "updated").unwrap();
-        assert_eq!(validate_cached(&root, &path, &cancel).unwrap().bytes, 7);
+        let preview = |paths: &[&Path]| {
+            let mut found = Vec::new();
+            let cached = paths
+                .iter()
+                .map(|p| Cached {
+                    path: p.to_path_buf(),
+                    bytes: 5,
+                    files: 1,
+                })
+                .collect();
+            cached_preview(&root, cached, &AtomicBool::new(false), |c| found.push(c));
+            found
+        };
+        let found = preview(&[&path, &root.join("missing/node_modules")]);
+        assert_eq!(found.len(), 1);
+        assert_eq!((found[0].bytes, found[0].files), (5, 1));
+        let report = delete(&root, &found);
+        assert_eq!(report.failures.len(), 1);
+        assert!(path.join("file").exists());
         std::fs::remove_file(project.join("package.json")).unwrap();
-        assert!(validate_cached(&root, &path, &cancel).is_none());
+        assert!(preview(&[&path]).is_empty());
+    }
+
+    #[test]
+    fn large_candidate_is_split_across_workers_with_identical_fingerprint() {
+        let f = Fixture::new();
+        f.file("app/package.json", "{}");
+        for d in 0..40 {
+            for n in 0..5 {
+                f.file(
+                    &format!("app/node_modules/p{d}/lib/{n}.js"),
+                    "x".repeat(n).as_str(),
+                );
+            }
+        }
+        let serial = scan_with_workers(&f.0, &AtomicBool::new(false), 1, |_| {});
+        let parallel = scan_with_workers(&f.0, &AtomicBool::new(false), 8, |_| {});
+        let (a, b) = (&serial.entries[0], &parallel.entries[0]);
+        assert_eq!(a.files, 200);
+        assert_eq!(a.bytes, 40 * 10);
+        assert_eq!(a.fingerprint, b.fingerprint);
+        let mut listing = Vec::new();
+        let strict = inventory(&a.path, &HashSet::new(), &mut listing).unwrap();
+        assert_eq!(Some(strict.fingerprint), a.fingerprint);
+        assert_eq!(listing.len() as u64, strict.fingerprint.entries);
     }
 
     #[test]
@@ -981,7 +1257,7 @@ mod tests {
             assert_eq!(a.bytes, 9);
             assert_eq!(a.bytes, b.bytes);
             assert_eq!(a.files, b.files);
-            assert_eq!(a.manifest, b.manifest);
+            assert_eq!(a.fingerprint, b.fingerprint);
             assert!(b.issue.is_none());
         }
     }
