@@ -66,7 +66,8 @@ jobs:
           test -f /usr/share/icons/hicolor/256x256/apps/vijideck.png
           test -f /usr/share/doc/vijideck/copyright
           test -f /usr/share/metainfo/app.vijideck.desktop.metainfo.xml
-          dpkg -L vijideck | xargs -d '\n' stat -c '%a %n' | awk '$1 !~ /^(755|644)$/ { print "Bad mode: " $0; bad=1 } END { exit bad }'
+          # Shared directories keep the permissions already set on the runner.
+          dpkg-deb --fsys-tarfile ./dist/*/*.deb | tar -tvf - | awk '$1 !~ /^(drwxr-xr-x|-rw-r--r--|-rwxr-xr-x)$/ { print "Bad mode: " $0; bad=1 } END { exit bad }'
           sudo apt-get remove -y vijideck
       - uses: actions/upload-artifact@v4
         with:
